@@ -3,55 +3,66 @@ using System.Text;
 namespace Chess;
 
 // Square-Centric representation of a chess board
-public class Chessboard
+public class Chessboard : FEN
 {
-    Square[,] board;
+    PieceType[,] board;
 
-    public Chessboard()
+    public Chessboard(string initalPosition = INITAL) : base(initalPosition)
     {
-        this.board = new Square[12, 12];
+        this.board = new PieceType[12, 12];
+        this.Update();
+    }
+
+    // update the board from the FEN position
+    public void Update()
+    {
         this.Clear();
+
+        string[] ranks = notation.Split(' ')[0].Split('/');
+
+        int y = 7, x = 7;
+        foreach (string rank in ranks)
+        {
+            foreach (char piece in rank)
+                if (char.IsNumber(piece))
+                    x -= piece - 48;
+                else
+                    SetSquare((PieceType)piece, new Point(x--, y));
+
+            y--;
+            x = 7;
+        }
     }
 
     // get what is at a given square
-    public Square GetSquare(int x, int y)
+    public PieceType GetSquare(Point square)
     {
-        // offset past buffer
-        x += 2;
-        y += 2;
+        return this.board[square.y + 2, square.x + 2];
+    }
 
-        return this.board[x, y];
+    public PieceType GetSquare(int x, int y)
+    {
+        return this.board[y + 2, x + 2];
     }
 
     // plcae a piece on a square
-    public void SetSquare(Square piece, int x, int y)
+    public void SetSquare(PieceType piece, Point square)
     {
-        // offset for buffer
-        x += 2;
-        y += 2;
+        Point p = new(square.x + 2, square.y + 2);
 
         // bounds checking
-        if (x < 2 || x > 10 || y < 2 || y > 10)
-            throw new IndexOutOfRangeException($"(${x},{y}) is an invalid square to place a piece");
+        if (p.x < 2 || p.x > 10 || p.y < 2 || p.y > 10)
+            throw new IndexOutOfRangeException($"(${square.x},{square.y}) is an invalid square to place a piece");
 
         // place
-        this.board[x, y] = piece;
+        this.board[p.y, p.x] = piece;
     }
 
     // clear a squrae
-    public void ClearSquare(int x, int y)
+    public void ClearSquare(Point square)
     {
-        // offset for buffer
-        x += 2;
-        y += 2;
-
-        // determine clear square color
-        Color c = Color.Black;
-        if (x % 2 == 0 ^ y % 2 == 0)
-            c = Color.White;
-
         // replace square
-        this.board[x, y] = new Square(PieceType.None, c);
+        this.board[square.y + 2, square.x + 2] = PieceType.None;
     }
 
     // clear the board to it's default state
@@ -60,25 +71,18 @@ public class Chessboard
     {
         for (int x = 0; x < 12; x++)
             for (int y = 0; y < 12; y++)
-            {
-                // set the color correctly for an empty square
-                Color c = Color.Black;
-                if (x % 2 == 0 ^ y % 2 == 0)
-                    c = Color.White;
-
                 if (x <= 1 || x >= 10 || y <= 1 || y >= 10)
-                    this.board[x, y] = new Square(PieceType.Invalid, c);
+                    this.board[x, y] = PieceType.Invalid;
                 else
-                    this.board[x, y] = new Square(PieceType.None, c);
-            }
+                    this.board[x, y] = PieceType.None;
     }
 
     // Iter over valid board squares
-    public IEnumerable<Square> SquareIter()
+    public IEnumerable<PieceType> SquareIter()
     {
         for (int x = 2; x < 10; x++)
             for (int y = 2; y < 10; y++)
-                yield return this.board[x, y];
+                yield return this.board[y, x];
     }
 
     // print the board to a string
@@ -88,10 +92,7 @@ public class Chessboard
         for (int x = 2; x < 10; x++)
         {
             for (int y = 2; y < 10; y++)
-            {
-                sb.Append(this.board[x, y].Char());
-                sb.Append(" ");
-            }
+                sb.Append((char)this.board[x, y] + " ");
             sb.Append("\n");
         }
         return sb.ToString();

@@ -4,46 +4,15 @@ namespace Chess;
 public class FEN
 {
     // input info
-    string notation;
+    public string notation;
+
+    public const string CLEAR  = "8/8/8/8/8/8/8/8 w - - 0 1";
+    public const string INITAL = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
 
     public FEN(string notation)
     {
         this.notation = notation;
-    }
-
-    // get a chessboard object representing the board position
-    public Chessboard Board()
-    {
-        Chessboard b   = new();
-        string[] ranks = this.notation.Split(' ')[0].Split('/');
-
-        int y = 0, x = 0;
-        foreach (string rank in ranks)
-        {
-            foreach (char piece in rank)
-            {
-                if (char.IsNumber(piece))
-                    x += piece - 48;
-                else
-                {
-                    PieceType pieceType = (PieceType)piece;
-                    Color     color     = Color.Black;
-
-                    if (char.IsUpper(piece))
-                    {
-                        pieceType = (PieceType)char.ToLower(piece);
-                        color     = Color.White;
-                    }
-
-                    b.SetSquare(new Square(pieceType, color), y, x);
-                    x++;
-                }
-            }
-            y++;
-            x = 0;
-        }
-
-        return b;
     }
 
     // get the side to move
@@ -64,12 +33,12 @@ public class FEN
 
     // en passant target square
     // null if no en enpassant exists
-    public string? enPassantSquare()
+    public Point? enPassantSquare()
     {
         string square = notation.Split(' ')[3];
         if (square == "-")
             return null;
-        return square;
+        return new Point(square);
     }
 
     // halfmoves since the last pawn move or capture
