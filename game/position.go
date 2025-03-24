@@ -13,6 +13,11 @@ func (p Position) GetFen() Fen {
 	return p.fen
 }
 
+func (p Position) LegalMoves() []Move {
+	mg := NewMoveGenerator(p)
+	return mg.Generate()
+}
+
 func (p Position) String() string {
 	return p.fen.String()
 }

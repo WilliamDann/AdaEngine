@@ -8,8 +8,7 @@ import (
 
 func main() {
 	pos := game.NewPosition(game.ItalianPosition)
-	mg := game.NewMoveGenerator(*pos)
 
-	fmt.Println(mg.Generate())
+	fmt.Println(pos.LegalMoves())
 	fmt.Println(pos.GetBoard())
 }
