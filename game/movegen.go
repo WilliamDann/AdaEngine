@@ -1,5 +1,12 @@
 package game
 
+import (
+	"strings"
+	"unicode"
+)
+
+type Side = string
+
 // direction defs
 var (
 	// caridinal directions
@@ -21,6 +28,10 @@ var (
 	Knight_WSW = Coord{-2, 1}
 	Knight_WNW = Coord{-2, -1}
 	Knight_NNW = Coord{-1, -2}
+
+	// board sides
+	Kingside  Side = "kingside"
+	Queenside Side = "queenside"
 )
 
 var PromoteOpts = []PieceType{Knight, Bishop, Rook, Queen}
@@ -283,7 +294,8 @@ func (mg MoveGenerator) pawnCaptureStep(direction Coord) MoveRule {
 }
 
 // generator for pawn moving a single step
-//  this is different from the base single step as pawns cannot capture forward
+//
+//	this is different from the base single step as pawns cannot capture forward
 func (mg MoveGenerator) pawnStep() MoveRule {
 	fired := false
 	return func(cursor Coord) *Coord {
@@ -324,6 +336,63 @@ func (mg MoveGenerator) pawnTwoStep() MoveRule {
 
 		// not a capture
 		return &cursor
+	}
+}
+
+// check if castling rights exist for a color in a direction
+func (mg MoveGenerator) checkCastlingRights(color Color, side Side) bool {
+	look := 'k'
+	if side == Queenside {
+		look = 'q'
+	}
+	if color {
+		look = unicode.ToUpper(look)
+	}
+
+	return strings.Contains(mg.position.fen.CastlingRights, string(look))
+}
+
+func (mg MoveGenerator) castle(side Side) MoveRule {
+	fired := false
+	return func(cursor Coord) *Coord {
+		// fire only once
+		if fired {
+			return nil
+		}
+		fired = true
+
+		color := mg.position.fen.ActiveColor
+
+		// find correct castling direction
+		direction := East
+		if side == Queenside {
+			direction = West
+		}
+
+		// if the king does not have the right to castle, the king has been moved or the rook has been moved
+		// in that case the move is not legal
+		// this also handles if the rook is in place or not
+		if !mg.checkCastlingRights(color, side) {
+			return nil
+		}
+
+		origin := NewCoordSan("e1")
+		sq1 := origin.Add(direction)
+		sq2 := sq1.Add(direction)
+		sq3 := sq2.Add(direction)
+
+		// if the path is blocked, no castle
+		if !mg.position.board.IsEmpty(sq1) || !mg.position.board.IsEmpty(sq2) {
+			return nil
+		}
+
+		// if we're castling queenside there is an extra square
+		if side == Queenside && !mg.position.board.IsEmpty(sq3) {
+			return nil
+		}
+
+		// castle!
+		return &sq2
 	}
 }
 
@@ -382,5 +451,8 @@ func (mg MoveGenerator) rules() map[PieceType][]MoveRule {
 			mg.stepRule(Southeast),
 			mg.stepRule(Southwest),
 			mg.stepRule(Northwest),
+
+			mg.castle(Kingside),
+			mg.castle(Queenside),
 		}}
 }
