@@ -14,7 +14,7 @@ func (p Position) GetFen() Fen {
 }
 
 func (p Position) LegalMoves() []Move {
-	mg := NewMoveGenerator(p)
+	mg := NewMoveGenerator(p, StandardRuleSet)
 	return mg.Generate()
 }
 
