@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math"
 	"strings"
 	"unicode"
 )
@@ -66,11 +67,6 @@ func NewMoveGenerator(position Position) *MoveGenerator {
 	var mg MoveGenerator
 
 	mg.moves = []Move{}
-
-	// for pawn moves to be simpler
-	if !position.fen.ActiveColor {
-		position.board = position.board.Flip()
-	}
 	mg.position = position
 
 	// find all the pieces for the side to move
@@ -137,6 +133,7 @@ func (mg *MoveGenerator) promoteMove(start Coord, cursor Coord, capture bool) {
 			To(cursor).
 			Capture(capture).
 			Promote(true, &opt).
+			Castle(false, nil).
 			Move()
 		mg.moves = append(mg.moves, move)
 	}
@@ -154,6 +151,8 @@ func (mg *MoveGenerator) applyRule(next MoveRule) {
 			return
 		}
 
+		castle := piece.Type == King && math.Abs(float64(start.X)-float64(cursor.X)) > 1
+
 		capture := !mg.position.board.IsEmpty(*cursor)
 		promote := false
 
@@ -165,6 +164,21 @@ func (mg *MoveGenerator) applyRule(next MoveRule) {
 
 		if promote {
 			mg.promoteMove(start, *cursor, capture)
+		} else if castle {
+			side := Queenside
+			if cursor.X == 6 {
+				side = Kingside
+			}
+
+			move := MoveBuilder().
+				Piece(piece).
+				From(start).
+				To(*cursor).
+				Capture(false).
+				Promote(false, nil).
+				Castle(true, &side).
+				Move()
+			mg.moves = append(mg.moves, move)
 		} else {
 			move := MoveBuilder().
 				Piece(piece).
@@ -172,6 +186,7 @@ func (mg *MoveGenerator) applyRule(next MoveRule) {
 				To(*cursor).
 				Capture(capture).
 				Promote(false, nil).
+				Castle(false, nil).
 				Move()
 			mg.moves = append(mg.moves, move)
 		}
@@ -188,15 +203,6 @@ func (mg *MoveGenerator) Generate() []Move {
 		}
 
 		mg.applyRule(mg.getCurrentRule())
-	}
-
-	// if board was flipped, adjust coords
-	if mg.position.fen.ActiveColor == Black {
-		for i, move := range mg.moves {
-			mg.moves[i].From = Coord{7, 7}.Sub(move.From)
-			mg.moves[i].To = Coord{7, 7}.Sub(move.To)
-
-		}
 	}
 
 	return mg.moves
@@ -277,6 +283,11 @@ func (mg MoveGenerator) pawnCaptureStep(direction Coord) MoveRule {
 		}
 		fired = true
 
+		// determine the direction the pawn moves in
+		if !mg.getCurrentPiece().Color {
+			direction.Y *= -1
+		}
+
 		// check for a capture
 		cursor = cursor.Add(direction)
 		if !mg.position.board.IsEmpty(cursor) {
@@ -306,8 +317,14 @@ func (mg MoveGenerator) pawnStep() MoveRule {
 		}
 		fired = true
 
+		// determine the direction the pawn moves in
+		direction := North
+		if !mg.getCurrentPiece().Color {
+			direction = South
+		}
+
 		// check for a capture
-		cursor = cursor.Add(North)
+		cursor = cursor.Add(direction)
 		if !mg.position.board.IsEmpty(cursor) {
 			return nil
 		}
@@ -321,15 +338,26 @@ func (mg MoveGenerator) pawnStep() MoveRule {
 func (mg MoveGenerator) pawnTwoStep() MoveRule {
 	fired := false
 	return func(cursor Coord) *Coord {
+		origin := 1
+		if mg.getCurrentPiece().Color == Black {
+			origin = 6
+		}
+
 		// if this diection has already been examined, we're done
 		// or if the pawn is not in the 2nd rand, the move is invalid
-		if fired || cursor.Y != 1 {
+		if fired || cursor.Y != origin {
 			return nil
 		}
 		fired = true
 
+		// determine the direction the pawn moves in
+		direction := North
+		if !mg.getCurrentPiece().Color {
+			direction = South
+		}
+
 		// check for a capture
-		cursor = cursor.Add(North).Add(North)
+		cursor = cursor.Add(direction).Add(direction)
 		if !mg.position.board.IsEmpty(cursor) {
 			return nil
 		}
@@ -352,6 +380,7 @@ func (mg MoveGenerator) checkCastlingRights(color Color, side Side) bool {
 	return strings.Contains(mg.position.fen.CastlingRights, string(look))
 }
 
+// gen move for castling
 func (mg MoveGenerator) castle(side Side) MoveRule {
 	fired := false
 	return func(cursor Coord) *Coord {

@@ -49,6 +49,6 @@ func NewCoordSan(san string) *Coord {
 }
 
 func NewCoord(x int, y int) *Coord {
-	coord := Coord{x, y}
+	coord := Coord{x, 7 - y}
 	return &coord
 }

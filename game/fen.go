@@ -25,22 +25,22 @@ func (f Fen) GetBoard() *Board {
 	board := NewBoard()
 	rows := strings.Split(f.PieceData, "/")
 
-	x := 7
-	y := 7
+	x := 0
+	y := 0
 	for _, row := range rows {
 		for _, piece := range row {
 			if unicode.IsDigit(piece) {
-				x -= int(piece - '0')
+				x += int(piece - '0')
 			} else {
 				piece := *NewPieceFromChar(piece)
 				coord := *NewCoord(x, y)
 
 				board.Set(piece, coord)
-				x--
+				x++
 			}
 		}
-		x = 7
-		y--
+		x = 0
+		y++
 	}
 
 	return board

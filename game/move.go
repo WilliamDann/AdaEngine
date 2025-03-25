@@ -11,10 +11,20 @@ type Move struct {
 	Capture       bool
 	Promote       bool
 	PromoteTarget *PieceType
+
+	Castle bool
+	Side   *Side
 }
 
 func (m Move) String() string {
 	var sb strings.Builder
+
+	if m.Castle {
+		if *m.Side == Kingside {
+			return "0-0"
+		}
+		return "0-0-0"
+	}
 
 	if m.Piece.Type != Pawn {
 		sb.WriteString(strings.ToUpper(m.Piece.String()))
@@ -66,6 +76,12 @@ func (m *moveBuilder) Capture(value bool) *moveBuilder {
 func (m *moveBuilder) Promote(value bool, pieceType *PieceType) *moveBuilder {
 	m.move.Promote = value
 	m.move.PromoteTarget = pieceType
+	return m
+}
+
+func (m *moveBuilder) Castle(value bool, side *Side) *moveBuilder {
+	m.move.Castle = value
+	m.move.Side = side
 	return m
 }
 

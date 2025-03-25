@@ -18,21 +18,6 @@ func NewBoard() *Board {
 	return &b
 }
 
-func (b Board) Flip() *Board {
-	other := NewBoard()
-
-	for y := 0; y <= 7; y++ {
-		for x := 0; x <= 7; x++ {
-			piece := b.Get(*NewCoord(x, y))
-			if !piece.IsNone() {
-				other.Set(piece, *NewCoord(7-x, 7-y))
-			}
-		}
-	}
-
-	return other
-}
-
 func (b Board) IsEmpty(coord Coord) bool {
 	return b.Get(coord).Is(*NoPiece())
 }
@@ -128,7 +113,7 @@ func (b Board) String() string {
 	sb.WriteRune('\n')
 
 	for y := 0; y <= 7; y++ {
-		sb.WriteRune(rune('1' + y))
+		sb.WriteRune(rune('8' - y))
 		sb.WriteRune(' ')
 		for x := 0; x <= 7; x++ {
 			sb.WriteString(b.Get(*NewCoord(x, y)).String())
