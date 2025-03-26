@@ -9,8 +9,10 @@ type Move struct {
 	To   Coord
 
 	Capture       bool
+	CaptureTarget *Piece
+
 	Promote       bool
-	PromoteTarget *PieceType
+	PromoteTarget *Piece
 
 	Castle bool
 	Side   *Side
@@ -38,7 +40,7 @@ func (m Move) String() string {
 
 	if m.Promote {
 		sb.WriteString("=")
-		sb.WriteString(NewPiece(m.Piece.Color, *m.PromoteTarget).String())
+		sb.WriteString(m.PromoteTarget.String())
 	}
 
 	return sb.String()
@@ -68,14 +70,15 @@ func (m *moveBuilder) To(coord Coord) *moveBuilder {
 	return m
 }
 
-func (m *moveBuilder) Capture(value bool) *moveBuilder {
+func (m *moveBuilder) Capture(value bool, target *Piece) *moveBuilder {
 	m.move.Capture = value
+	m.move.CaptureTarget = target
 	return m
 }
 
-func (m *moveBuilder) Promote(value bool, pieceType *PieceType) *moveBuilder {
+func (m *moveBuilder) Promote(value bool, piece *Piece) *moveBuilder {
 	m.move.Promote = value
-	m.move.PromoteTarget = pieceType
+	m.move.PromoteTarget = piece
 	return m
 }
 

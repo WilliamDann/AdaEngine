@@ -26,6 +26,16 @@ func noCaptures(moves []Move) []Move {
 	return arr
 }
 
+func capturesPiece(moves []Move, target PieceType) []Move {
+	arr := []Move{}
+	for _, move := range moves {
+		if move.Capture && move.CaptureTarget.Type == target {
+			arr = append(arr, move)
+		}
+	}
+	return arr
+}
+
 // moverule for a slider in a given direction
 func slider(position Position, start Coord, direction Direction) []Move {
 	var moves []Move
@@ -53,7 +63,7 @@ func slider(position Position, start Coord, direction Direction) []Move {
 					Piece(piece).
 					From(start).
 					To(cursor).
-					Capture(true).
+					Capture(true, &blocker).
 					Move())
 			}
 
@@ -92,7 +102,7 @@ func step(position Position, start Coord, direction Direction) []Move {
 				Piece(piece).
 				From(start).
 				To(to).
-				Capture(true).
+				Capture(true, &blocker).
 				Move()}
 		}
 

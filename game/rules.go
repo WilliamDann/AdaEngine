@@ -109,3 +109,56 @@ var StandardRules RuleSet = RuleSet{
 		castling,
 	},
 }
+
+var CaptureOnlyRules RuleSet = RuleSet{
+	Pawn: {
+		func(position Position, start Coord) []Move { return captures(pawn(position, start)) },
+	},
+
+	Knight: {
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_NNE)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_ENE)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_ESE)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_SSE)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_SSW)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_WSW)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_WNW)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Knight_NNW)) },
+	},
+
+	Rook: {
+		func(position Position, start Coord) []Move { return captures(slider(position, start, North)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, East)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, South)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, West)) },
+	},
+
+	Bishop: {
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Northeast)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Southeast)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Southwest)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Northwest)) },
+	},
+
+	Queen: {
+		func(position Position, start Coord) []Move { return captures(slider(position, start, North)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, East)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, South)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, West)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Northeast)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Southeast)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Southwest)) },
+		func(position Position, start Coord) []Move { return captures(slider(position, start, Northwest)) },
+	},
+
+	King: {
+		func(position Position, start Coord) []Move { return captures(step(position, start, North)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, East)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, South)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, West)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Northeast)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Southeast)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Southwest)) },
+		func(position Position, start Coord) []Move { return captures(step(position, start, Northwest)) },
+	},
+}

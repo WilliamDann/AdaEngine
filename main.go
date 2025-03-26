@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	pos := game.NewPosition("r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R b KQkq - 6 5")
+	pos := game.NewPosition("2R1R2K/8/8/7R/3k4/8/8/8 b - - 0 1")
 
 	fmt.Println(pos.GetBoard())
 	fmt.Println(pos.LegalMoves())
