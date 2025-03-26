@@ -29,14 +29,24 @@ func (p Position) Check() bool {
 	return false
 }
 
+// if a given player is in check
+func (p Position) InCheck(color Color) bool {
+	temp := p.fen.ActiveColor
+	p.fen.ActiveColor = !color
+
+	val := p.Check()
+	p.fen.ActiveColor = temp
+	return val
+}
+
 // if there is check and the king has no escape
 func (p Position) Checkmate() bool {
-	return p.Check() && len(p.LegalMoves()) == 0
+	return p.InCheck(p.fen.ActiveColor) && len(p.LegalMoves()) == 0
 }
 
 // if there are no legal moves and there is no check
 func (p Position) Stalemate() bool {
-	return !p.Check() && len(p.LegalMoves()) == 0
+	return !p.InCheck(p.fen.ActiveColor) && len(p.LegalMoves()) == 0
 }
 
 // make a move
@@ -135,11 +145,11 @@ func (p *Position) Unmove() bool {
 	return true
 }
 
-func (p Position) PsuedolegalMoves() []Move {
-	return ApplyRuleSet(p, StandardRules)
+func (p *Position) PsuedolegalMoves() []Move {
+	return ApplyRuleSet(*p, StandardRules)
 }
 
-func (p Position) LegalMoves() []Move {
+func (p *Position) LegalMoves() []Move {
 	var moves []Move
 
 	for _, move := range p.PsuedolegalMoves() {
