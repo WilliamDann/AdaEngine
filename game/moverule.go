@@ -5,173 +5,108 @@ import (
 	"unicode"
 )
 
+// get only the captures from a set of moves
+func captures(moves []Move) []Move {
+	arr := []Move{}
+	for _, move := range moves {
+		if move.Capture {
+			arr = append(arr, move)
+		}
+	}
+	return arr
+}
+
+func noCaptures(moves []Move) []Move {
+	arr := []Move{}
+	for _, move := range moves {
+		if !move.Capture {
+			arr = append(arr, move)
+		}
+	}
+	return arr
+}
+
 // moverule for a slider in a given direction
-func sliderRule(direction Coord) MoveRule {
+func slider(position Position, start Coord, direction Direction) []Move {
+	var moves []Move
+
+	piece := position.board.Get(start)
+	cursor := start
+
 	blocked := false
-	return func(piece Piece, position Position, cursor Coord) *Coord {
-		// if we've been blocked, this diection is complete
-		if blocked {
-			blocked = false
-			return nil
-		}
-
-		// take a step in the direction
+	for {
 		cursor = cursor.Add(direction)
 
-		// if we're off board, direction is complete
-		if !cursor.Valid() {
-			blocked = false
-			return nil
+		// if we're blocked by a piece or the edge of the board
+		if blocked || !cursor.Valid() {
+			break
 		}
 
-		// if there is a piece in our way
+		// if we're blocked by a piece
 		if !position.board.IsEmpty(cursor) {
-			blocker := position.board.Get(cursor)
 			blocked = true
-
-			// if it's our piece we've reached the end of this direction
-			if blocker.Color == piece.Color {
-				blocked = false
-				return nil
-			}
-		}
-
-		return &cursor
-	}
-}
-
-// moverule for a slider for a single step
-func stepRule(direction Coord) MoveRule {
-	fired := false
-	return func(piece Piece, position Position, cursor Coord) *Coord {
-		// if this diection has already been examined, we're done
-		if fired {
-			fired = false
-			return nil
-		}
-		fired = true
-
-		// check for a capture
-		cursor = cursor.Add(direction)
-
-		// if the square is invalid, do not return the mvoe
-		if !cursor.Valid() {
-			fired = false
-			return nil
-		}
-
-		if !position.board.IsEmpty(cursor) {
 			blocker := position.board.Get(cursor)
 
-			// if it's our piece we've reached the end of this direction
-			if blocker.Color == piece.Color {
-				fired = false
-				return nil
-			}
-		}
-
-		// return the move
-		return &cursor
-	}
-}
-
-// moverule for single steps that MUST be a capture
-func pawnCaptureStep(direction Coord) MoveRule {
-	fired := false
-	return func(piece Piece, position Position, cursor Coord) *Coord {
-		// if this diection has already been examined, we're done
-		if fired {
-			fired = false
-			return nil
-		}
-		fired = true
-
-		// determine the direction the pawn moves in
-		if !piece.Color {
-			direction.Y *= -1
-		}
-
-		// check for a capture
-		cursor = cursor.Add(direction)
-		if !position.board.IsEmpty(cursor) || (position.fen.EnPassantSquare != nil && position.fen.EnPassantSquare == &cursor) {
-			blocker := position.board.Get(cursor)
-
-			// the only case were this is a valid move is capturing an opponent piece
+			// if we can capture the piece, we get a capture
 			if blocker.Color != piece.Color {
-				return &cursor
+				moves = append(moves, MoveBuilder().
+					Piece(piece).
+					From(start).
+					To(cursor).
+					Capture(true).
+					Move())
 			}
+
+			// don't generate a normal move to the blocked square
+			continue
 		}
 
-		// not a capture
-		fired = false
-		return nil
+		// we're unblocked, so generate a move
+		moves = append(moves, MoveBuilder().
+			Piece(piece).
+			From(start).
+			To(cursor).
+			Move())
 	}
+
+	return moves
 }
 
-// generator for pawn moving a single step
-//
-//	this is different from the base single step as pawns cannot capture forward
-func pawnStep() MoveRule {
-	fired := false
-	return func(piece Piece, position Position, cursor Coord) *Coord {
-		// if this diection has already been examined, we're done
-		// or if the pawn is not in the 2nd rand, the move is invalid
-		if fired {
-			fired = false
-			return nil
-		}
-		fired = true
+// move rule for a step in a given direction
+func step(position Position, start Coord, direction Direction) []Move {
+	piece := position.board.Get(start)
+	to := start.Add(direction)
 
-		// determine the direction the pawn moves in
-		direction := North
-		if !piece.Color {
-			direction = South
-		}
-
-		// check for a capture
-		cursor = cursor.Add(direction)
-		if !position.board.IsEmpty(cursor) {
-			fired = false
-			return nil
-		}
-
-		// not a capture
-		return &cursor
+	// if we're off the board, fail
+	if !to.Valid() {
+		return []Move{}
 	}
-}
 
-// generator for pawn moving up two steps
-func pawnTwoStep() MoveRule {
-	fired := false
-	return func(piece Piece, position Position, cursor Coord) *Coord {
-		origin := 1
-		if piece.Color == Black {
-			origin = 6
+	// if we're blocked by a piece
+	if !position.board.IsEmpty(to) {
+		blocker := position.board.Get(to)
+
+		// if we can capture, that's the move
+		if blocker.Color != piece.Color {
+			return []Move{MoveBuilder().
+				Piece(piece).
+				From(start).
+				To(to).
+				Capture(true).
+				Move()}
 		}
 
-		// if this diection has already been examined, we're done
-		// or if the pawn is not in the 2nd rand, the move is invalid
-		if fired || cursor.Y != origin {
-			fired = false
-			return nil
-		}
-		fired = true
+		// cannot capture our own peices!
+		return []Move{}
+	}
 
-		// determine the direction the pawn moves in
-		direction := North
-		if !piece.Color {
-			direction = South
-		}
-
-		// check for a capture
-		cursor = cursor.Add(direction).Add(direction)
-		if !position.board.IsEmpty(cursor) {
-			fired = false
-			return nil
-		}
-
-		// not a capture
-		return &cursor
+	// if the square is clear we can move there
+	return []Move{
+		MoveBuilder().
+			Piece(piece).
+			From(start).
+			To(to).
+			Move(),
 	}
 }
 
@@ -188,54 +123,58 @@ func checkCastlingRights(position Position, color Color, side Side) bool {
 	return strings.Contains(position.fen.CastlingRights, string(look))
 }
 
-// gen move for castling
-func castle(side Side) MoveRule {
-	fired := false
-	return func(piece Piece, position Position, cursor Coord) *Coord {
-		// fire only once
-		if fired {
-			fired = false
-			return nil
-		}
-		fired = true
+// generate moves for castling
+func castling(position Position, start Coord) []Move {
+	var moves []Move
 
-		color := position.fen.ActiveColor
+	piece := position.board.Get(start)
 
-		// find correct castling direction
-		direction := East
-		if side == Queenside {
-			direction = West
-		}
-
-		// if the king does not have the right to castle, the king has been moved or the rook has been moved
-		// in that case the move is not legal
-		// this also handles if the rook is in place or not
-		if !checkCastlingRights(position, color, side) {
-			fired = false
-			return nil
-		}
-
-		origin := NewCoordSan("e1")
-		if color == Black {
-			origin = NewCoordSan("e8")
-		}
-		sq1 := origin.Add(direction)
-		sq2 := sq1.Add(direction)
-		sq3 := sq2.Add(direction)
-
-		// if the path is blocked, no castle
-		if !position.board.IsEmpty(sq1) || !position.board.IsEmpty(sq2) {
-			fired = false
-			return nil
-		}
-
-		// if we're castling queenside there is an extra square
-		if side == Queenside && !position.board.IsEmpty(sq3) {
-			fired = false
-			return nil
-		}
-
-		// castle!
-		return &sq2
+	// check if the king can castle kingside
+	if checkCastlingRights(position, piece.Color, Kingside) {
+		moves = append(moves, MoveBuilder().
+			Piece(piece).
+			From(start).
+			To(start.Add(East).Add(East)).
+			Castle(true, &Kingside).
+			Move())
 	}
+
+	// check if the king can castle kingside
+	if checkCastlingRights(position, piece.Color, Queenside) {
+		moves = append(moves, MoveBuilder().
+			Piece(piece).
+			From(start).
+			To(start.Add(East).Add(East)).
+			Castle(true, &Queenside).
+			Move())
+	}
+
+	return moves
+}
+
+// generate pawn moves
+func pawn(position Position, start Coord) []Move {
+	piece := position.board.Get(start)
+	up := Coord{1, 1}
+	origin := 1
+	if piece.Color == Black {
+		up.Y = -1
+		origin = 6
+	}
+
+	var moves []Move
+
+	// single step up
+	moves = append(moves, noCaptures(step(position, start, North.Mul(up)))...)
+
+	// 2 steps up
+	if start.Y == origin && len(moves) != 0 {
+		moves = append(moves, noCaptures(step(position, start, North.Add(North).Mul(up)))...)
+	}
+
+	// pawn captures
+	moves = append(moves, captures(step(position, start, Northwest.Mul(up)))...)
+	moves = append(moves, captures(step(position, start, Northwest.Mul(up)))...)
+
+	return moves
 }

@@ -13,6 +13,12 @@ func (s Coord) Valid() bool {
 	return s.X >= 0 && s.X <= 7 && s.Y >= 0 && s.Y <= 7
 }
 
+func (s Coord) Mul(other Coord) Coord {
+	s.X *= other.X
+	s.Y *= other.Y
+	return s
+}
+
 func (s Coord) Add(other Coord) Coord {
 	s.X += other.X
 	s.Y += other.Y

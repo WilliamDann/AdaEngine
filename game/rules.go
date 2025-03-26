@@ -32,68 +32,80 @@ var (
 
 var PromoteOpts = []PieceType{Knight, Bishop, Rook, Queen}
 
-// function that gives the next square given the current one
-type MoveRule = func(Piece, Position, Coord) *Coord
+// defines a single rule for a piece's movment
+type MoveRule = func(Position, Coord) []Move
 
 // set of functions that define how the pieces move
 type RuleSet = map[PieceType][]MoveRule
 
-// standard chess ruleset
-var StandardRuleSet RuleSet = RuleSet{
+func ApplyRuleSet(position Position, ruleSet RuleSet) []Move {
+	var moves []Move
+
+	// apply the rule set to the pieces on the board
+	for piece, coords := range position.board.pieces {
+		if piece.Color == position.fen.ActiveColor {
+			for _, start := range coords {
+				for _, rule := range ruleSet[piece.Type] {
+					moves = append(moves, rule(position, start)...)
+				}
+			}
+		}
+	}
+
+	return moves
+}
+
+// standard chess rule set
+var StandardRules RuleSet = RuleSet{
 	Pawn: {
-		pawnStep(),
-		pawnTwoStep(),
-		pawnCaptureStep(Northeast),
-		pawnCaptureStep(Northwest),
-	},
-
-	Rook: {
-		sliderRule(North),
-		sliderRule(East),
-		sliderRule(South),
-		sliderRule(West),
-	},
-
-	Bishop: {
-		sliderRule(Northeast),
-		sliderRule(Southeast),
-		sliderRule(Southwest),
-		sliderRule(Northwest),
-	},
-
-	Queen: {
-		sliderRule(North),
-		sliderRule(East),
-		sliderRule(South),
-		sliderRule(West),
-		sliderRule(Northeast),
-		sliderRule(Southeast),
-		sliderRule(Southwest),
-		sliderRule(Northwest),
+		pawn,
 	},
 
 	Knight: {
-		stepRule(Knight_NNE),
-		stepRule(Knight_ENE),
-		stepRule(Knight_ESE),
-		stepRule(Knight_SSE),
-		stepRule(Knight_SSW),
-		stepRule(Knight_WSW),
-		stepRule(Knight_WNW),
-		stepRule(Knight_NNW),
+		func(position Position, start Coord) []Move { return step(position, start, Knight_NNE) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_ENE) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_ESE) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_SSE) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_SSW) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_WSW) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_WNW) },
+		func(position Position, start Coord) []Move { return step(position, start, Knight_NNW) },
+	},
+
+	Rook: {
+		func(position Position, start Coord) []Move { return slider(position, start, North) },
+		func(position Position, start Coord) []Move { return slider(position, start, East) },
+		func(position Position, start Coord) []Move { return slider(position, start, South) },
+		func(position Position, start Coord) []Move { return slider(position, start, West) },
+	},
+
+	Bishop: {
+		func(position Position, start Coord) []Move { return slider(position, start, Northeast) },
+		func(position Position, start Coord) []Move { return slider(position, start, Southeast) },
+		func(position Position, start Coord) []Move { return slider(position, start, Southwest) },
+		func(position Position, start Coord) []Move { return slider(position, start, Northwest) },
+	},
+
+	Queen: {
+		func(position Position, start Coord) []Move { return slider(position, start, North) },
+		func(position Position, start Coord) []Move { return slider(position, start, East) },
+		func(position Position, start Coord) []Move { return slider(position, start, South) },
+		func(position Position, start Coord) []Move { return slider(position, start, West) },
+		func(position Position, start Coord) []Move { return slider(position, start, Northeast) },
+		func(position Position, start Coord) []Move { return slider(position, start, Southeast) },
+		func(position Position, start Coord) []Move { return slider(position, start, Southwest) },
+		func(position Position, start Coord) []Move { return slider(position, start, Northwest) },
 	},
 
 	King: {
-		stepRule(North),
-		stepRule(East),
-		stepRule(South),
-		stepRule(West),
-		stepRule(Northeast),
-		stepRule(Southeast),
-		stepRule(Southwest),
-		stepRule(Northwest),
-
-		castle(Kingside),
-		castle(Queenside),
+		func(position Position, start Coord) []Move { return step(position, start, North) },
+		func(position Position, start Coord) []Move { return step(position, start, East) },
+		func(position Position, start Coord) []Move { return step(position, start, South) },
+		func(position Position, start Coord) []Move { return step(position, start, West) },
+		func(position Position, start Coord) []Move { return step(position, start, Northeast) },
+		func(position Position, start Coord) []Move { return step(position, start, Southeast) },
+		func(position Position, start Coord) []Move { return step(position, start, Southwest) },
+		func(position Position, start Coord) []Move { return step(position, start, Northwest) },
+		castling,
 	},
 }
