@@ -1,15 +1,11 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/WilliamDann/adachess/game"
+	"github.com/WilliamDann/adachess/perft"
 )
 
 func main() {
-	pos := game.NewPosition(game.ItalianPosition)
-
-	fmt.Println(pos.GetBoard())
-	fmt.Println(pos.LegalMoves())
-	fmt.Println(pos.Checkmate())
+	pos := game.NewStartingPosition()
+	perft.Perft(pos, 2)
 }

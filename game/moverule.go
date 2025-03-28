@@ -141,25 +141,78 @@ func castling(position Position, start Coord) []Move {
 
 	// check if the king can castle kingside
 	if checkCastlingRights(position, piece.Color, Kingside) {
-		moves = append(moves, MoveBuilder().
-			Piece(piece).
-			From(start).
-			To(start.Add(East).Add(East)).
-			Castle(true, &Kingside).
-			Move())
+		sq1 := start.Add(East)
+		sq2 := sq1.Add(East)
+
+		// if the two squares in the way are not clear, no castle!
+		if position.board.IsEmpty(sq1) && position.board.IsEmpty(sq2) {
+			moves = append(moves, MoveBuilder().
+				Piece(piece).
+				From(start).
+				To(start.Add(East).Add(East)).
+				Castle(true, &Kingside).
+				Move())
+		}
 	}
 
 	// check if the king can castle kingside
 	if checkCastlingRights(position, piece.Color, Queenside) {
-		moves = append(moves, MoveBuilder().
-			Piece(piece).
-			From(start).
-			To(start.Add(East).Add(East)).
-			Castle(true, &Queenside).
-			Move())
+		sq1 := start.Add(West)
+		sq2 := sq1.Add(West)
+		sq3 := sq2.Add(West)
+
+		// if the two squares in the way are not clear, no castle!
+		if position.board.IsEmpty(sq1) && position.board.IsEmpty(sq2) && position.board.IsEmpty(sq3) {
+			moves = append(moves, MoveBuilder().
+				Piece(piece).
+				From(start).
+				To(start.Add(East).Add(East)).
+				Castle(true, &Queenside).
+				Move())
+		}
 	}
 
 	return moves
+}
+
+// this is distinct from step because of en passant
+func pawnCap(position Position, start Coord, direction Direction) []Move {
+	piece := position.board.Get(start)
+	to := start.Add(direction)
+
+	// if we're off the board, fail
+	if !to.Valid() {
+		return []Move{}
+	}
+
+	// if we're blocked by a piece, or the en passant square is our target
+	ep := (position.fen.EnPassantSquare != nil && position.fen.EnPassantSquare.Equ(to))
+	if !position.board.IsEmpty(to) || ep {
+		blocker := position.board.Get(to)
+
+		// if we can capture, that's the move
+		if blocker.Color != piece.Color || ep {
+			return []Move{MoveBuilder().
+				Piece(piece).
+				From(start).
+				To(to).
+				Capture(true, &blocker).
+				Enpassant(ep).
+				Move()}
+		}
+
+		// cannot capture our own peices!
+		return []Move{}
+	}
+
+	// if the square is clear we can move there
+	return []Move{
+		MoveBuilder().
+			Piece(piece).
+			From(start).
+			To(to).
+			Move(),
+	}
 }
 
 // generate pawn moves
@@ -183,8 +236,8 @@ func pawn(position Position, start Coord) []Move {
 	}
 
 	// pawn captures
-	moves = append(moves, captures(step(position, start, Northwest.Mul(up)))...)
-	moves = append(moves, captures(step(position, start, Northwest.Mul(up)))...)
+	moves = append(moves, captures(pawnCap(position, start, Northwest.Mul(up)))...)
+	moves = append(moves, captures(pawnCap(position, start, Northwest.Mul(up)))...)
 
 	return moves
 }

@@ -51,7 +51,7 @@ func NewCoordSan(san string) *Coord {
 	x := CoordLetterToNum(rune(san[0]))
 	y := int(san[1] - '1')
 
-	return NewCoord(x, y)
+	return &Coord{x, y}
 }
 
 func NewCoord(x int, y int) *Coord {

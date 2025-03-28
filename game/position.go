@@ -107,6 +107,8 @@ func (p *Position) Move(move Move) bool {
 		} else {
 			p.fen.EnPassantSquare = NewCoord(move.From.X, move.From.Y+1)
 		}
+	} else {
+		p.fen.EnPassantSquare = nil
 	}
 
 	// 50 move rule

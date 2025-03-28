@@ -10,6 +10,7 @@ type Move struct {
 
 	Capture       bool
 	CaptureTarget *Piece
+	Enpassant     bool
 
 	Promote       bool
 	PromoteTarget *Piece
@@ -57,6 +58,11 @@ func MoveBuilder() *moveBuilder {
 
 func (m *moveBuilder) Piece(value Piece) *moveBuilder {
 	m.move.Piece = value
+	return m
+}
+
+func (m *moveBuilder) Enpassant(value bool) *moveBuilder {
+	m.move.Enpassant = value
 	return m
 }
 

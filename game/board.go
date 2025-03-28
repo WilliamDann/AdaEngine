@@ -70,9 +70,9 @@ func (b Board) FenPieceData() string {
 	var sb strings.Builder
 
 	empty := 0
-	for y := 0; y <= 7; y++ {
-		for x := 0; x <= 7; x++ {
-			coord := *NewCoord(x, y)
+	for y := 7; y >= 0; y-- {
+		for x := 7; x >= 0; x-- {
+			coord := Coord{x, y}
 
 			// count empty square to write at next non empty sqyare
 			if b.IsEmpty(coord) {
@@ -83,9 +83,9 @@ func (b Board) FenPieceData() string {
 					sb.WriteRune(rune('0' + empty))
 					empty = 0
 
-					// write piece char
-					sb.WriteString(b.Get(coord).String())
 				}
+				// write piece char
+				sb.WriteString(b.Get(coord).String())
 			}
 		}
 
@@ -97,7 +97,8 @@ func (b Board) FenPieceData() string {
 		sb.WriteRune('/')
 	}
 
-	return sb.String()
+	str := sb.String()
+	return str[:len(str)-1]
 }
 
 func (b Board) String() string {
