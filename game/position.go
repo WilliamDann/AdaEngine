@@ -23,7 +23,7 @@ func (p Position) GetFen() Fen {
 
 // if the king can be captured on the opponent's turn
 func (p Position) Check() bool {
-	if len(capturesPiece(ApplyRuleSet(p, CaptureOnlyRules), King)) != 0 {
+	if len(CapturesPiece(ApplyRuleSet(p, CaptureOnlyRules), King)) != 0 {
 		return true
 	}
 	return false

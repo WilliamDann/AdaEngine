@@ -6,7 +6,7 @@ import (
 )
 
 // get only the captures from a set of moves
-func captures(moves []Move) []Move {
+func Captures(moves []Move) []Move {
 	arr := []Move{}
 	for _, move := range moves {
 		if move.Capture {
@@ -16,7 +16,7 @@ func captures(moves []Move) []Move {
 	return arr
 }
 
-func noCaptures(moves []Move) []Move {
+func NoCaptures(moves []Move) []Move {
 	arr := []Move{}
 	for _, move := range moves {
 		if !move.Capture {
@@ -26,7 +26,7 @@ func noCaptures(moves []Move) []Move {
 	return arr
 }
 
-func capturesPiece(moves []Move, target PieceType) []Move {
+func CapturesPiece(moves []Move, target PieceType) []Move {
 	arr := []Move{}
 	for _, move := range moves {
 		if move.Capture && move.CaptureTarget.Type == target {
@@ -228,16 +228,16 @@ func pawn(position Position, start Coord) []Move {
 	var moves []Move
 
 	// single step up
-	moves = append(moves, noCaptures(step(position, start, North.Mul(up)))...)
+	moves = append(moves, NoCaptures(step(position, start, North.Mul(up)))...)
 
 	// 2 steps up
 	if start.Y == origin && len(moves) != 0 {
-		moves = append(moves, noCaptures(step(position, start, North.Add(North).Mul(up)))...)
+		moves = append(moves, NoCaptures(step(position, start, North.Add(North).Mul(up)))...)
 	}
 
 	// pawn captures
-	moves = append(moves, captures(pawnCap(position, start, Northwest.Mul(up)))...)
-	moves = append(moves, captures(pawnCap(position, start, Northwest.Mul(up)))...)
+	moves = append(moves, Captures(pawnCap(position, start, Northwest.Mul(up)))...)
+	moves = append(moves, Captures(pawnCap(position, start, Northwest.Mul(up)))...)
 
 	return moves
 }

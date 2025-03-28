@@ -35,13 +35,14 @@ func dataRow(row []string) PerftResults {
 
 	var _ error
 	perft.Nodes, _ = strconv.ParseUint(row[1], 10, 64)
-	// perft.Captures, _ = strconv.ParseUint(row[2], 10, 64)
-	// perft.Enpassant, _ = strconv.ParseUint(row[3], 10, 64)
-	// perft.Promos, _ = strconv.ParseUint(row[4], 10, 64)
-	// perft.Checks, _ = strconv.ParseUint(row[5], 10, 64)
-	// perft.DiscoveredChecks, _ = strconv.ParseUint(row[6], 10, 64)
-	// perft.DoubleChecks, _ = strconv.ParseUint(row[7], 10, 64)
-	// perft.Checkmates, _ = strconv.ParseUint(row[8], 10, 64)
+	perft.Captures, _ = strconv.ParseUint(row[2], 10, 64)
+	perft.Enpassant, _ = strconv.ParseUint(row[3], 10, 64)
+	perft.Castles, _ = strconv.ParseUint(row[4], 10, 64)
+	perft.Promos, _ = strconv.ParseUint(row[5], 10, 64)
+	perft.Checks, _ = strconv.ParseUint(row[6], 10, 64)
+	// perft.DiscoveredChecks, _ = strconv.ParseUint(row[7], 10, 64)
+	// perft.DoubleChecks, _ = strconv.ParseUint(row[8], 10, 64)
+	perft.Checkmates, _ = strconv.ParseUint(row[9], 10, 64)
 
 	return *perft
 }

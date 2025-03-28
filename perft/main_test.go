@@ -65,10 +65,10 @@ func TestPerftDepth1(t *testing.T) {
 		pos := game.NewPosition(fen)
 		expects := NewPerftResultsFromFile(file)
 
-		depth := 1
+		depth := 0
 		got := Perft(pos, depth+1)
 		if !expects[depth].Equ(got) {
-			t.Errorf("Perft info mismatch depth=%d position=%s expectNodes=%d gotNodes=%d", depth, pos, expects[depth].Nodes, got.Nodes)
+			t.Errorf("Perft info mismatch depth=%d position=%s expected=%d got=%d", depth, pos, expects[depth], got)
 		}
 	}
 }
@@ -78,10 +78,10 @@ func TestPerftDepth2(t *testing.T) {
 		pos := game.NewPosition(fen)
 		expects := NewPerftResultsFromFile(file)
 
-		depth := 2
+		depth := 1
 		got := Perft(pos, depth+1)
 		if !expects[depth].Equ(got) {
-			t.Errorf("Perft info mismatch depth=%d position=%s expectNodes=%d gotNodes=%d", depth, pos, expects[depth].Nodes, got.Nodes)
+			t.Errorf("Perft info mismatch depth=%d position=%s expected=%d got=%d", depth, pos, expects[depth], got)
 		}
 	}
 }
@@ -91,10 +91,23 @@ func TestPerftDepth3(t *testing.T) {
 		pos := game.NewPosition(fen)
 		expects := NewPerftResultsFromFile(file)
 
+		depth := 2
+		got := Perft(pos, depth+1)
+		if !expects[depth].Equ(got) {
+			t.Errorf("Perft info mismatch depth=%d position=%s expected=%d got=%d", depth, pos, expects[depth], got)
+		}
+	}
+}
+
+func TestPerftDepth4(t *testing.T) {
+	for fen, file := range perfts {
+		pos := game.NewPosition(fen)
+		expects := NewPerftResultsFromFile(file)
+
 		depth := 3
 		got := Perft(pos, depth+1)
 		if !expects[depth].Equ(got) {
-			t.Errorf("Perft info mismatch depth=%d position=%s expectNodes=%d gotNodes=%d", depth, pos, expects[depth].Nodes, got.Nodes)
+			t.Errorf("Perft info mismatch depth=%d position=%s expected=%d got=%d", depth, pos, expects[depth], got)
 		}
 	}
 }
@@ -107,7 +120,7 @@ func TestPerftDepth(t *testing.T) {
 		for depth, _ := range file {
 			got := Perft(pos, depth+1)
 			if !expects[depth].Equ(got) {
-				t.Errorf("Perft info mismatch depth=%d position=%s expectNodes=%d gotNodes=%d", depth, pos, expects[depth].Nodes, got.Nodes)
+				t.Errorf("Perft info mismatch depth=%d position=%s expected=%d got=%d", depth, pos, expects[depth], got)
 			}
 		}
 	}
