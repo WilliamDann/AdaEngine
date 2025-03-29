@@ -18,6 +18,10 @@ func NewBoard() *Board {
 	return &b
 }
 
+func (b Board) Pieces() map[Piece][]Coord {
+	return b.pieces
+}
+
 func (b Board) IsEmpty(coord Coord) bool {
 	return b.Get(coord).Is(*NoPiece())
 }
@@ -71,7 +75,7 @@ func (b Board) FenPieceData() string {
 
 	empty := 0
 	for y := 7; y >= 0; y-- {
-		for x := 7; x >= 0; x-- {
+		for x := 0; x <= 7; x++ {
 			coord := Coord{x, y}
 
 			// count empty square to write at next non empty sqyare
@@ -82,7 +86,6 @@ func (b Board) FenPieceData() string {
 					// write empty number
 					sb.WriteRune(rune('0' + empty))
 					empty = 0
-
 				}
 				// write piece char
 				sb.WriteString(b.Get(coord).String())

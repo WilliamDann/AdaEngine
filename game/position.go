@@ -13,24 +13,21 @@ type Position struct {
 	history []Fen
 }
 
-func (p Position) GetBoard() *Board {
+func (p *Position) GetBoard() *Board {
 	return p.board
 }
 
-func (p Position) GetFen() Fen {
+func (p *Position) GetFen() Fen {
 	return p.fen
 }
 
 // if the king can be captured on the opponent's turn
-func (p Position) Check() bool {
-	if len(CapturesPiece(ApplyRuleSet(p, CaptureOnlyRules), King)) != 0 {
-		return true
-	}
-	return false
+func (p *Position) Check() bool {
+	return len(CapturesPiece(ApplyRuleSet(p, CaptureOnlyRules), King)) != 0
 }
 
 // if a given player is in check
-func (p Position) InCheck(color Color) bool {
+func (p *Position) InCheck(color Color) bool {
 	temp := p.fen.ActiveColor
 	p.fen.ActiveColor = !color
 
@@ -39,13 +36,18 @@ func (p Position) InCheck(color Color) bool {
 	return val
 }
 
+// todo repetition
+func (p *Position) IsDraw() bool {
+	return p.fen.HalfmoveClock >= 50
+}
+
 // if there is check and the king has no escape
-func (p Position) Checkmate() bool {
+func (p *Position) Checkmate() bool {
 	return p.InCheck(p.fen.ActiveColor) && len(p.LegalMoves()) == 0
 }
 
 // if there are no legal moves and there is no check
-func (p Position) Stalemate() bool {
+func (p *Position) Stalemate() bool {
 	return !p.InCheck(p.fen.ActiveColor) && len(p.LegalMoves()) == 0
 }
 
@@ -60,7 +62,7 @@ func (p *Position) Move(move Move) bool {
 
 	p.board.Set(move.Piece, move.To)
 
-	// update fen string
+	// update fen striTng
 	// 	is this a costly operation?
 	//  this will be called many times per second
 	//  removing it will probably be a good idea
@@ -148,7 +150,7 @@ func (p *Position) Unmove() bool {
 }
 
 func (p *Position) PsuedolegalMoves() []Move {
-	return ApplyRuleSet(*p, StandardRules)
+	return ApplyRuleSet(p, StandardRules)
 }
 
 func (p *Position) LegalMoves() []Move {
@@ -164,7 +166,7 @@ func (p *Position) LegalMoves() []Move {
 	return moves
 }
 
-func (p Position) String() string {
+func (p *Position) String() string {
 	return p.fen.String()
 }
 

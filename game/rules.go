@@ -38,7 +38,7 @@ type MoveRule = func(Position, Coord) []Move
 // set of functions that define how the pieces move
 type RuleSet = map[PieceType][]MoveRule
 
-func ApplyRuleSet(position Position, ruleSet RuleSet) []Move {
+func ApplyRuleSet(position *Position, ruleSet RuleSet) []Move {
 	var moves []Move
 
 	// apply the rule set to the pieces on the board
@@ -46,7 +46,7 @@ func ApplyRuleSet(position Position, ruleSet RuleSet) []Move {
 		if piece.Color == position.fen.ActiveColor {
 			for _, start := range coords {
 				for _, rule := range ruleSet[piece.Type] {
-					moves = append(moves, rule(position, start)...)
+					moves = append(moves, rule(*position, start)...)
 				}
 			}
 		}
