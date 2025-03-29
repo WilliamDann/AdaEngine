@@ -51,6 +51,10 @@ func (p *Position) Stalemate() bool {
 	return !p.InCheck(p.fen.ActiveColor) && len(p.LegalMoves()) == 0
 }
 
+func (p *Position) Pass() {
+	p.fen.ActiveColor = !p.fen.ActiveColor
+}
+
 // make a move
 func (p *Position) Move(move Move) bool {
 	// add current position to the history
@@ -61,6 +65,36 @@ func (p *Position) Move(move Move) bool {
 	p.board.Clear(move.To)
 
 	p.board.Set(move.Piece, move.To)
+
+	// move rook when castling
+	if move.Castle {
+		fromFile := "a"
+		toFile := "c"
+		if move.Side == &Kingside {
+			fromFile = "h"
+			toFile = "f"
+		}
+
+		rank := "1"
+		if move.Piece.Color == Black {
+			rank = "8"
+		}
+
+		// set rook for castling
+		from := NewCoordSan(fromFile + rank)
+		to := NewCoordSan(toFile + rank)
+
+		p.board.Clear(*from)
+		p.board.Clear(*to)
+
+		p.board.Set(*NewPiece(move.Piece.Color, Rook), *to)
+	}
+
+	// set promote value when promoting
+	if move.Promote {
+		p.board.Clear(move.To)
+		p.board.Set(*move.PromoteTarget, move.To)
+	}
 
 	// update fen striTng
 	// 	is this a costly operation?

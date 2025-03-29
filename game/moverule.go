@@ -237,7 +237,7 @@ func pawn(position Position, start Coord) []Move {
 
 	// pawn captures
 	moves = append(moves, Captures(pawnCap(position, start, Northwest.Mul(up)))...)
-	moves = append(moves, Captures(pawnCap(position, start, Northwest.Mul(up)))...)
+	moves = append(moves, Captures(pawnCap(position, start, Northeast.Mul(up)))...)
 
 	return moves
 }

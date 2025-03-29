@@ -29,7 +29,11 @@ func alphaBetaMax(position *game.Position, alpha float64, beta float64, depth in
 
 		if score > alpha {
 			bestMove = move
-			bestValue = alpha
+			bestValue = score
+
+			if score > alpha {
+				alpha = score
+			}
 		}
 		if score >= beta {
 			return &move, score
@@ -41,7 +45,7 @@ func alphaBetaMax(position *game.Position, alpha float64, beta float64, depth in
 
 func alphaBetaMin(position *game.Position, alpha float64, beta float64, depth int) (*game.Move, float64) {
 	if depth == 0 {
-		return nil, -Eval(position)
+		return nil, Eval(position)
 	}
 
 	var bestMove game.Move
@@ -53,7 +57,12 @@ func alphaBetaMin(position *game.Position, alpha float64, beta float64, depth in
 		position.Unmove()
 
 		if score < bestValue {
-			beta = score
+			bestValue = score
+			bestMove = move
+
+			if score < beta {
+				beta = score
+			}
 		}
 		if score <= alpha {
 			return &move, score

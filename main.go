@@ -23,7 +23,7 @@ func findMove(position *game.Position, from game.Coord, to game.Coord) *game.Mov
 
 func main() {
 	position := game.NewStartingPosition()
-	depth := 2
+	depth := 4
 	playing := game.Black
 
 	if len(os.Args) > 1 {
