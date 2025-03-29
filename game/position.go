@@ -149,6 +149,10 @@ func (p *Position) Unmove() bool {
 	return true
 }
 
+func (p *Position) Complete() bool {
+	return p.Checkmate() || p.Stalemate() || p.IsDraw()
+}
+
 func (p *Position) PsuedolegalMoves() []Move {
 	return ApplyRuleSet(p, StandardRules)
 }

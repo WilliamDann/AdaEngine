@@ -42,6 +42,15 @@ func main() {
 	fmt.Println("Ada Engine depth " + strconv.Itoa(depth) + " playing " + sidestr)
 
 	for {
+		if position.Complete() {
+			fmt.Println(position.GetBoard())
+			fmt.Println(position.GetFen())
+
+			fmt.Println("Game Complete")
+
+			break
+		}
+
 		fmt.Println(position.GetBoard())
 		fmt.Println(position.GetFen())
 
