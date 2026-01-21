@@ -16,14 +16,14 @@ type Board struct {
 	white				Bitboard				// map of white pieces
 	black				Bitboard				// map of black pieces
 
-	pieces 			map[int]Piece 	// square -> Piece code
+	pieces			map[int]Piece 	// square -> Piece code
 
 
 	// fen data
-	activeColor Color
-	castling    CastlingRights	// if a player can castle
-	enPassant   int 						// en passant square (-1 if none)
-	halfmove    int
+	activeColor	Color
+	castling		CastlingRights	// if a player can castle
+	enPassant		int 						// en passant square (-1 if none)
+	halfmove		int
 	fullmove		int
 }
 
