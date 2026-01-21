@@ -1,3 +1,3 @@
-module github.com/WilliamDann/adachess
+module github.com/WilliamDann/AdaEngine
 
-go 1.20
+go 1.25.5
