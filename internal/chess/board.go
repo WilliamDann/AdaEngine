@@ -47,22 +47,22 @@ func (b *Board) ForEachPiece(fn PieceIterator) {
 
 // Iterate over pieces of a specific color
 func (b *Board) ForEachColorPiece(color Color, fn PieceIterator) {
-	// Choose the appropriate bitboard
-	var colorBoard Bitboard
-	if color == White {
-		colorBoard = b.white
-	} else {
-		colorBoard = b.black
-	}
-	
-	// Iterate only over set bits in the color bitboard
-	for square := 0; square < 64; square++ {
-		if colorBoard.Check(square) {
-			if !fn(b.pieces[square], square) {
-				return
-			}
-		}
-	}
+    // Choose the appropriate bitboard
+    var colorBoard Bitboard
+    if color == White {
+        colorBoard = b.white
+    } else {
+        colorBoard = b.black
+    }
+
+    // Iterate using PopLSB
+    for colorBoard != 0 {
+        var square int
+        colorBoard, square = colorBoard.PopLSB()
+        if !fn(b.pieces[square], square) {
+            return
+        }
+    }
 }
 
 // reset the board to starting state
