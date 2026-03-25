@@ -8,7 +8,7 @@ type Color 			uint8
 // code definitions
 const (
 	None Piece     = 0b0000
-	Pawn PieceType = iota + 1 // 001
+	Pawn PieceType = iota     // 001
 	Knight										// 010
 	Bishop										// 011
 	Rook											// 100
