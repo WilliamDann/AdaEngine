@@ -1,8 +1,8 @@
 package fen
 import (
 	"testing"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/board"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/game"
+	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/internal/position"
 )
 
 var starting string = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -19,17 +19,17 @@ func TestItalian(t *testing.T) {
 	}
 
 	checks := []struct {
-		sq board.Square
-		piece board.Piece
+		sq core.Square
+		piece core.Piece
 	} {
-		{ board.NewSquare(3, 2), board.NewPiece(board.Bishop, board.White) },
-		{ board.NewSquare(2, 3), board.NewPiece(board.Pawn, board.White) },
-		{ board.NewSquare(3, 4), board.NewPiece(board.Pawn, board.White) },
-		{ board.NewSquare(2, 5), board.NewPiece(board.Knight, board.White) },
+		{ core.NewSquare(3, 2), core.NewPiece(core.Bishop, core.White) },
+		{ core.NewSquare(2, 3), core.NewPiece(core.Pawn, core.White) },
+		{ core.NewSquare(3, 4), core.NewPiece(core.Pawn, core.White) },
+		{ core.NewSquare(2, 5), core.NewPiece(core.Knight, core.White) },
 
-		{ board.NewSquare(5, 2), board.NewPiece(board.Knight, board.Black) },
-		{ board.NewSquare(5, 5), board.NewPiece(board.Knight, board.Black) },
-		{ board.NewSquare(4, 4), board.NewPiece(board.Pawn, board.Black) },
+		{ core.NewSquare(5, 2), core.NewPiece(core.Knight, core.Black) },
+		{ core.NewSquare(5, 5), core.NewPiece(core.Knight, core.Black) },
+		{ core.NewSquare(4, 4), core.NewPiece(core.Pawn, core.Black) },
 	}
 
 
@@ -48,11 +48,11 @@ func TestStartingPosition(t *testing.T) {
 	}
 
 	// rank 0: RNBQKBNR
-	rank0 := []board.PieceType{board.Rook, board.Knight, board.Bishop, board.Queen, board.King, board.Bishop, board.Knight, board.Rook}
+	rank0 := []core.PieceType{core.Rook, core.Knight, core.Bishop, core.Queen, core.King, core.Bishop, core.Knight, core.Rook}
 	for file, pt := range rank0 {
-		sq := board.NewSquare(0, file)
+		sq := core.NewSquare(0, file)
 		got := pos.Board.Check(sq)
-		expect := board.NewPiece(pt, board.White)
+		expect := core.NewPiece(pt, core.White)
 		if got != expect {
 			t.Errorf("at %s: got %s, expected %s", sq.String(), got.String(), expect.String())
 		}
@@ -60,9 +60,9 @@ func TestStartingPosition(t *testing.T) {
 
 	// rank 1: white pawns
 	for file := 0; file < 8; file++ {
-		sq := board.NewSquare(1, file)
+		sq := core.NewSquare(1, file)
 		got := pos.Board.Check(sq)
-		expect := board.NewPiece(board.Pawn, board.White)
+		expect := core.NewPiece(core.Pawn, core.White)
 		if got != expect {
 			t.Errorf("at %s: got %s, expected %s", sq.String(), got.String(), expect.String())
 		}
@@ -71,9 +71,9 @@ func TestStartingPosition(t *testing.T) {
 	// ranks 2-5: empty
 	for rank := 2; rank <= 5; rank++ {
 		for file := 0; file < 8; file++ {
-			sq := board.NewSquare(rank, file)
+			sq := core.NewSquare(rank, file)
 			got := pos.Board.Check(sq)
-			if got != board.None {
+			if got != core.None {
 				t.Errorf("at %s: got %s, expected empty", sq.String(), got.String())
 			}
 		}
@@ -81,9 +81,9 @@ func TestStartingPosition(t *testing.T) {
 
 	// rank 6: black pawns
 	for file := 0; file < 8; file++ {
-		sq := board.NewSquare(6, file)
+		sq := core.NewSquare(6, file)
 		got := pos.Board.Check(sq)
-		expect := board.NewPiece(board.Pawn, board.Black)
+		expect := core.NewPiece(core.Pawn, core.Black)
 		if got != expect {
 			t.Errorf("at %s: got %s, expected %s", sq.String(), got.String(), expect.String())
 		}
@@ -91,9 +91,9 @@ func TestStartingPosition(t *testing.T) {
 
 	// rank 7: rnbqkbnr
 	for file, pt := range rank0 {
-		sq := board.NewSquare(7, file)
+		sq := core.NewSquare(7, file)
 		got := pos.Board.Check(sq)
-		expect := board.NewPiece(pt, board.Black)
+		expect := core.NewPiece(pt, core.Black)
 		if got != expect {
 			t.Errorf("at %s: got %s, expected %s", sq.String(), got.String(), expect.String())
 		}
@@ -104,14 +104,14 @@ func TestCastling(t *testing.T) {
 	tests := []struct {
 		name     string
 		fen      string
-		castling game.CastlingRights
+		castling position.CastlingRights
 	}{
-		{"starting", starting, game.AllCastling},
-		{"italian", italian, game.AllCastling},
-		{"ep", ep, game.AllCastling},
-		{"bcastle", bcastle, game.BlackKingside | game.BlackQueenside},
-		{"wcastle", wcastle, game.WhiteKingside | game.WhiteQueenside},
-		{"nocastle", nocastle, game.NoCastling},
+		{"starting", starting, position.AllCastling},
+		{"italian", italian, position.AllCastling},
+		{"ep", ep, position.AllCastling},
+		{"bcastle", bcastle, position.BlackKingside | position.BlackQueenside},
+		{"wcastle", wcastle, position.WhiteKingside | position.WhiteQueenside},
+		{"nocastle", nocastle, position.NoCastling},
 	}
 
 	for _, tt := range tests {
@@ -129,11 +129,11 @@ func TestActiveColor(t *testing.T) {
 	tests := []struct {
 		name  string
 		fen   string
-		color board.Color
+		color core.Color
 	}{
-		{"starting", starting, board.White},
-		{"italian", italian, board.Black},
-		{"ep", ep, board.White},
+		{"starting", starting, core.White},
+		{"italian", italian, core.Black},
+		{"ep", ep, core.White},
 	}
 
 	for _, tt := range tests {
@@ -182,7 +182,7 @@ func TestEnPassant(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expect := board.NewSquare(5, 3) // d6
+	expect := core.NewSquare(5, 3) // d6
 	if pos.EnPassant != expect {
 		t.Errorf("en passant: got %s, expected %s", pos.EnPassant.String(), expect.String())
 	}

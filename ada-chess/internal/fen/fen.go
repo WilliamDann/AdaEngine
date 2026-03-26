@@ -5,30 +5,30 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/board"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/game"
+	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/internal/position"
 )
 
 // map of rune -> piece
-var pieces = map[rune]board.Piece{
-	'P': board.NewPiece(board.Pawn, board.White),
-	'N': board.NewPiece(board.Knight, board.White),
-	'B': board.NewPiece(board.Bishop, board.White),
-	'R': board.NewPiece(board.Rook, board.White),
-	'Q': board.NewPiece(board.Queen, board.White),
-	'K': board.NewPiece(board.King, board.White),
-	'p': board.NewPiece(board.Pawn, board.Black),
-	'n': board.NewPiece(board.Knight, board.Black),
-	'b': board.NewPiece(board.Bishop, board.Black),
-	'r': board.NewPiece(board.Rook, board.Black),
-	'q': board.NewPiece(board.Queen, board.Black),
-	'k': board.NewPiece(board.King, board.Black),
+var pieces = map[rune]core.Piece{
+	'P': core.NewPiece(core.Pawn, core.White),
+	'N': core.NewPiece(core.Knight, core.White),
+	'B': core.NewPiece(core.Bishop, core.White),
+	'R': core.NewPiece(core.Rook, core.White),
+	'Q': core.NewPiece(core.Queen, core.White),
+	'K': core.NewPiece(core.King, core.White),
+	'p': core.NewPiece(core.Pawn, core.Black),
+	'n': core.NewPiece(core.Knight, core.Black),
+	'b': core.NewPiece(core.Bishop, core.Black),
+	'r': core.NewPiece(core.Rook, core.Black),
+	'q': core.NewPiece(core.Queen, core.Black),
+	'k': core.NewPiece(core.King, core.Black),
 }
 
 // get piece data from a FEN string
-func parsePieceData(data string) (*board.Chessboard, error) {
+func parsePieceData(data string) (*core.Chessboard, error) {
 	segments := strings.Split(data, "/")
-	b        := board.NewChessboard()
+	b        := core.NewChessboard()
 
 	if len(segments) != 8 {
 		return nil, errors.New("invalid number of peice data segments")
@@ -36,13 +36,13 @@ func parsePieceData(data string) (*board.Chessboard, error) {
 
 	for rank, segment := range segments {
 		ptr := (7-rank) * 8
-		
+
 		for _, chr := range segment {
 			if chr >= '0' && chr <= '8' {
 				ptr += int(chr - '0')
 			} else if strings.ContainsRune("pnbrqkPNBRQK", chr) {
 				piece, _ := pieces[chr]
-				b.Set(board.Square(ptr), piece)
+				b.Set(core.Square(ptr), piece)
 				ptr++
 			} else {
 				return nil, errors.New("invalid row data: unknown char")
@@ -54,32 +54,32 @@ func parsePieceData(data string) (*board.Chessboard, error) {
 }
 
 // get active color from FEN string
-func parseActiveColor(data string) (board.Color, error) {
+func parseActiveColor(data string) (core.Color, error) {
 	if data == "w" {
-		return board.White, nil
+		return core.White, nil
 	} else if data == "b" {
-		return board.Black, nil
+		return core.Black, nil
 	}
 	return 0, errors.New("invalid color segment")
 }
 
 // get casting rights from FEN string
-func parseCastling(data string) (game.CastlingRights, error) {
+func parseCastling(data string) (position.CastlingRights, error) {
 	if data == "-" {
 		return 0, nil
 	}
 
-	var rights game.CastlingRights
+	var rights position.CastlingRights
 	for _, ch := range data {
 		switch ch {
 		case 'K':
-			rights |= game.WhiteKingside
+			rights |= position.WhiteKingside
 		case 'Q':
-			rights |= game.WhiteQueenside
+			rights |= position.WhiteQueenside
 		case 'k':
-			rights |= game.BlackKingside
+			rights |= position.BlackKingside
 		case 'q':
-			rights |= game.BlackQueenside
+			rights |= position.BlackQueenside
 		default:
 			return 0, errors.New("invalid castling segment")
 		}
@@ -89,20 +89,20 @@ func parseCastling(data string) (game.CastlingRights, error) {
 }
 
 // get en passant square from FEN string
-func parseEnPassant(data string) (board.Square, error) {
+func parseEnPassant(data string) (core.Square, error) {
 	if data == "-" {
-		return board.InvalidSquare, nil
+		return core.InvalidSquare, nil
 	}
 
 	if len(data) != 2 {
-		return board.InvalidSquare, errors.New("invalid en passant square")
+		return core.InvalidSquare, errors.New("invalid en passant square")
 	}
 
 	file := int(data[0] - 'a')
 	rank := int(data[1] - '1')
-	sq := board.NewSquare(rank, file)
+	sq := core.NewSquare(rank, file)
 	if !sq.Valid() {
-		return board.InvalidSquare, errors.New("invalid en passant square")
+		return core.InvalidSquare, errors.New("invalid en passant square")
 	}
 
 	return sq, nil
@@ -133,62 +133,62 @@ func parseFullmoveClock(data string) (int, error) {
 }
 
 
-// parse a FEN string into a chessboard 
-func Parse(fen string) (*game.Position, error) {
+// parse a FEN string into a chessboard
+func Parse(fen string) (*position.Position, error) {
 	segments := strings.Split(fen, " ")
 	if len(segments) != 6 {
 		return nil, errors.New("invalid fen format: incorrect segment number")
 	}
 
-	position := game.NewPosition()
+	pos := position.NewPosition()
 
 	// pieces
 	board, err := parsePieceData(segments[0])
 	if err != nil {
 		return nil, err
 	}
-	position.Board = board
+	pos.Board = board
 
 	// active color
 	color, err := parseActiveColor(segments[1])
 	if err != nil {
 		return nil, err
 	}
-	position.ActiveColor = color
+	pos.ActiveColor = color
 
 	// castling
 	castling, err := parseCastling(segments[2])
 	if err != nil {
 		return nil, err
 	}
-	position.Castling = castling
+	pos.Castling = castling
 
 	// en passant
 	epSquare, err := parseEnPassant(segments[3])
 	if err != nil {
 		return nil, err
 	}
-	position.EnPassant = epSquare
+	pos.EnPassant = epSquare
 
 	// halfmove
 	halfmove, err := parseHalfmoveClock(segments[4])
 	if err != nil {
 		return nil, err
 	}
-	position.Halfmoves = halfmove
+	pos.Halfmoves = halfmove
 
 	// fullmove
 	fullmove,err := parseFullmoveClock(segments[5])
 	if err != nil {
 		return nil, err
 	}
-	position.Fullmoves = fullmove
+	pos.Fullmoves = fullmove
 
 	// ok
-	return position, nil
+	return pos, nil
 }
 
 // output a Position into a fen string
-func Format(pos *game.Position) string {
+func Format(pos *position.Position) string {
 	return "NOT IMPLEMENTED"
 }
