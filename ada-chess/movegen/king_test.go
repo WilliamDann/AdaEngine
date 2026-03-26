@@ -3,7 +3,7 @@ package movegen
 import (
 	"testing"
 
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 )
 
 func TestKingMoves(t *testing.T) {

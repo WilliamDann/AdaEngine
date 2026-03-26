@@ -1,8 +1,8 @@
 package movegen
 
 import (
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/position"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/position"
 )
 
 // Attackers returns a bitboard of all pieces of the given color that attack sq.

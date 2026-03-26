@@ -1,6 +1,6 @@
 package movegen
 
-import "github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+import "github.com/WilliamDann/AdaEngine/ada-chess/core"
 
 var whitePawnAttacks [64]core.Bitboard
 var blackPawnAttacks [64]core.Bitboard

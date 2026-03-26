@@ -1,8 +1,8 @@
 package fen
 import (
 	"testing"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/position"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/position"
 )
 
 var starting string = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"

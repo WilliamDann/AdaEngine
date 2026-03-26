@@ -3,9 +3,9 @@ package movegen_test
 import (
 	"testing"
 
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/fen"
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/movegen"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/fen"
+	"github.com/WilliamDann/AdaEngine/ada-chess/movegen"
 )
 
 func TestPins_RookPinOnFile(t *testing.T) {

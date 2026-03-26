@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"math/bits"
 
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 )
 
 // magic bitboards for sliding pieces

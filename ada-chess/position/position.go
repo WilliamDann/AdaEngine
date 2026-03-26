@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 )
 
 // state for an active chesss game

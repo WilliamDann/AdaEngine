@@ -1,7 +1,7 @@
 package movegen
 
 import (
-	"github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 )
 
 // direction for a ray on the board

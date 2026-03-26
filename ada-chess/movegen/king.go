@@ -1,6 +1,6 @@
 package movegen
 
-import "github.com/WilliamDann/AdaEngine/ada-chess/internal/core"
+import "github.com/WilliamDann/AdaEngine/ada-chess/core"
 
 var (
 	kingOffsets = [8]Direction{North, NE, East, SE, South, SW, West, NW}
