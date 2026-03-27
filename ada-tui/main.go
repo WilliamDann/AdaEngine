@@ -12,6 +12,7 @@ import (
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 	"github.com/WilliamDann/AdaEngine/ada-chess/fen"
 	"github.com/WilliamDann/AdaEngine/ada-chess/movegen"
+	"github.com/WilliamDann/AdaEngine/ada-chess/pgn"
 	"github.com/WilliamDann/AdaEngine/ada-chess/position"
 	"github.com/WilliamDann/AdaEngine/ada-search"
 )
@@ -28,6 +29,7 @@ type app struct {
 	pos   *position.Position
 	depth int
 	mode  int
+	game  *pgn.Game
 
 	tv    *tview.Application
 	board *KittyImage
@@ -103,6 +105,7 @@ func (a *app) engineMove() {
 			if res.Move == core.NoMove {
 				return
 			}
+			a.game.AddMove(pos, res.Move)
 			a.pos = position.MakeMove(pos, res.Move)
 			nps := uint64(0)
 			if elapsed.Seconds() > 0 {
@@ -146,6 +149,7 @@ func (a *app) handleInput(text string) {
 		a.appendLog("  [yellow]depth <n>[-]    Set search depth")
 		a.appendLog("  [yellow]fen <str>[-]    Load position")
 		a.appendLog("  [yellow]new[-]          New game")
+		a.appendLog("  [yellow]pgn[-]          Show PGN of current game")
 		a.appendLog("  [yellow]quit[-]         Exit")
 
 	case "moves", "m":
@@ -211,6 +215,7 @@ func (a *app) handleInput(text string) {
 				if res.Move == core.NoMove {
 					a.appendLog("[red]No moves available.[-]")
 				} else {
+					a.game.AddMove(pos, res.Move)
 					a.pos = position.MakeMove(pos, res.Move)
 					nps := uint64(0)
 					if elapsed.Seconds() > 0 {
@@ -240,7 +245,10 @@ func (a *app) handleInput(text string) {
 	case "new":
 		a.mode = modeHuman
 		a.pos, _ = fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-		a.appendLog("[yellow]New game.[-]")
+		a.game = pgn.NewGame(a.pos)
+		a.log.Clear()
+		fmt.Fprint(a.log, logoString())
+		a.appendLog("[yellow]New game.[-]\n")
 		a.refresh()
 
 	case "fen":
@@ -250,6 +258,7 @@ func (a *app) handleInput(text string) {
 			fenStr := strings.Join(args[1:], " ")
 			if p, err := fen.Parse(fenStr); err == nil {
 				a.pos = p
+				a.game = pgn.NewGame(a.pos)
 				a.appendLog("[yellow]Position loaded.[-]")
 				a.refresh()
 			} else {
@@ -257,9 +266,14 @@ func (a *app) handleInput(text string) {
 			}
 		}
 
+	case "pgn":
+		a.appendLog("[aqua]--- PGN ---[-]")
+		a.appendLog(a.game.String())
+
 	default:
 		m, ok := parseMove(a.pos, text)
 		if ok {
+			a.game.AddMove(a.pos, m)
 			a.pos = position.MakeMove(a.pos, m)
 			a.appendLog(fmt.Sprintf("You: [aqua]%s[-]", m))
 			a.refresh()
@@ -351,6 +365,7 @@ func main() {
 	tv := tview.NewApplication()
 	a := newApp()
 	a.pos = startPos
+	a.game = pgn.NewGame(startPos)
 	a.tv = tv
 
 	tview.Styles.PrimitiveBackgroundColor = tcell.ColorDefault
