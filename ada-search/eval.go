@@ -20,16 +20,14 @@ var pieceValue = [7]int{
 // Positive means the active color is better.
 func Evaluate(pos *position.Position) int {
 	score := 0
-	for sq := core.Square(0); sq < 64; sq++ {
-		piece := pos.Board.Check(sq)
-		if piece == core.None {
-			continue
-		}
-		val := pieceValue[piece.Type()]
-		if piece.Color() == pos.ActiveColor {
-			score += val
+	for pt := core.PieceType(1); pt <= 5; pt++ {
+		val := pieceValue[pt]
+		white := pos.Board.Pieces(core.NewPiece(pt, core.White)).Count()
+		black := pos.Board.Pieces(core.NewPiece(pt, core.Black)).Count()
+		if pos.ActiveColor == core.White {
+			score += val * (white - black)
 		} else {
-			score -= val
+			score += val * (black - white)
 		}
 	}
 	return score
