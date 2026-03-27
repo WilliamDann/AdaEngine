@@ -88,10 +88,16 @@ func (a *app) engineMove() {
 	}
 	d := a.depth
 	pos := a.pos
-	a.appendLog(fmt.Sprintf("[yellow]Thinking (depth %d)...[-]", d))
+	a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
 	go func() {
 		start := time.Now()
-		res := search.Search(pos, d)
+		res := search.Search(pos, d, func(r search.Result) {
+			elapsed := time.Since(start)
+			a.tv.QueueUpdateDraw(func() {
+				a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
+					r.Depth, r.Move, formatScore(r.Score), r.Nodes, elapsed.Round(time.Millisecond)))
+			})
+		})
 		elapsed := time.Since(start)
 		a.tv.QueueUpdateDraw(func() {
 			if res.Move == core.NoMove {
@@ -161,11 +167,17 @@ func (a *app) handleInput(text string) {
 
 	case "search", "s":
 		d := a.parseDepthArg(args)
-		a.appendLog(fmt.Sprintf("[yellow]Searching depth %d...[-]", d))
+		a.appendLog(fmt.Sprintf("[yellow]Searching depth 1..%d...[-]", d))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d)
+			res := search.Search(pos, d, func(r search.Result) {
+				elapsed := time.Since(start)
+				a.tv.QueueUpdateDraw(func() {
+					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
+						r.Depth, r.Move, formatScore(r.Score), r.Nodes, elapsed.Round(time.Millisecond)))
+				})
+			})
 			elapsed := time.Since(start)
 			a.tv.QueueUpdateDraw(func() {
 				if res.Move == core.NoMove {
@@ -183,11 +195,17 @@ func (a *app) handleInput(text string) {
 
 	case "play", "p":
 		d := a.parseDepthArg(args)
-		a.appendLog(fmt.Sprintf("[yellow]Thinking (depth %d)...[-]", d))
+		a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d)
+			res := search.Search(pos, d, func(r search.Result) {
+				elapsed := time.Since(start)
+				a.tv.QueueUpdateDraw(func() {
+					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
+						r.Depth, r.Move, formatScore(r.Score), r.Nodes, elapsed.Round(time.Millisecond)))
+				})
+			})
 			elapsed := time.Since(start)
 			a.tv.QueueUpdateDraw(func() {
 				if res.Move == core.NoMove {
