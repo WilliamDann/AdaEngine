@@ -88,15 +88,26 @@ func QueenMoves(square core.Square, blockers core.Bitboard) core.Bitboard {
 	return RookMoves(square, blockers).Union(BishopMoves(square, blockers))
 }
 
-// find magic bitboards on startup
-func init() {
+// GenerateMagics computes magic bitboard tables for all 64 squares.
+// Called by init(); exported so it can be benchmarked.
+func GenerateMagics() ([64]MagicEntry, [64][]core.Bitboard, [64]MagicEntry, [64][]core.Bitboard) {
+	var rMagics, bMagics [64]MagicEntry
+	var rMoves, bMoves   [64][]core.Bitboard
+
 	for sq := core.Square(0); sq < 64; sq++ {
 		rMask := rookMask(sq)
 		rBits := uint8(bits.OnesCount64(uint64(rMask)))
-		rookMagics[sq], rookMoves[sq] = findMagic(sq, rMask, rookAttacks, rBits)
+		rMagics[sq], rMoves[sq] = findMagic(sq, rMask, rookAttacks, rBits)
 
 		bMask := bishopMask(sq)
 		bBits := uint8(bits.OnesCount64(uint64(bMask)))
-		bishopMagics[sq], bishopMoves[sq] = findMagic(sq, bMask, bishopAttacks, bBits)
+		bMagics[sq], bMoves[sq] = findMagic(sq, bMask, bishopAttacks, bBits)
 	}
+
+	return rMagics, rMoves, bMagics, bMoves
+}
+
+// find magic bitboards on startup
+func init() {
+	rookMagics, rookMoves, bishopMagics, bishopMoves = GenerateMagics()
 }

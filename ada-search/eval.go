@@ -27,14 +27,14 @@ var advanceBonus = [7]int{
 	0,  // King
 }
 
-// Pawn advancement bonus by rank. Flat for early pushes, steep near promotion.
-//            rank: 0   1   2   3   4    5    6    7
-var pawnAdvance = [8]int{0, 0, 5, 5, 15, 30, 60, 100}
+// Pawn advancement bonus by rank. Negligible until very advanced.
+//            rank: 0  1  2  3  4   5   6   7
+var pawnAdvance = [8]int{0, 0, 0, 2, 5, 10, 25, 50}
 
 // Center bonus per piece type, scaled by closeness to center (0-3).
 var centerBonus = [7]int{
 	0,  // None
-	2,  // Pawn
+	5,  // Pawn — control the center
 	5,  // Knight — strongest center preference
 	3,  // Bishop
 	1,  // Rook

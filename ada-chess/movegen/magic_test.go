@@ -165,6 +165,12 @@ func TestBishopMovesWithBlockers(t *testing.T) {
 	}
 }
 
+func BenchmarkGenerateMagics(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		GenerateMagics()
+	}
+}
+
 func BenchmarkRookMovesMagic(b *testing.B) {
 	blockers := bb(sq(3, 5), sq(5, 3), sq(1, 3))
 	for i := 0; i < b.N; i++ {

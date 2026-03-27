@@ -24,6 +24,7 @@ const (
 	modeHuman = 0 // human vs engine (engine replies after human moves)
 	modeAuto  = 1 // engine vs engine
 	modeOff   = 2 // human vs human (no auto-play)
+	modeSF    = 3 // Ada vs Stockfish
 )
 
 type app struct {
@@ -33,6 +34,13 @@ type app struct {
 	timeLimit time.Duration // 0 means use depth
 	mode      int
 	game      *pgn.Game
+
+	// Stockfish opponent
+	sf          *uciEngine
+	sfColor     core.Color // which color Stockfish plays
+	sfTime      time.Duration
+	startFEN    string   // FEN at game start for UCI position command
+	moveHistory []string // UCI move strings from start position
 
 	tv    *tview.Application
 	board *KittyImage
@@ -107,6 +115,43 @@ func (a *app) searchLabel() string {
 	return fmt.Sprintf("depth 1..%d, %d threads", a.depth, a.threads)
 }
 
+// sfMove asks Stockfish for a move and plays it.
+func (a *app) sfMove() {
+	if a.sf == nil {
+		return
+	}
+	moves := movegen.LegalMoves(a.pos)
+	if moves.Count() == 0 {
+		return
+	}
+	pos := a.pos
+	a.appendLog("[yellow]Stockfish thinking...[-]")
+	go func() {
+		start := time.Now()
+		uci := a.sf.bestMove(a.startFEN, a.moveHistory, a.sfTime)
+		elapsed := time.Since(start)
+		a.tv.QueueUpdateDraw(func() {
+			m, ok := parseSFMove(pos, uci)
+			if !ok {
+				a.appendLog(fmt.Sprintf("[red]Stockfish returned invalid move: %s[-]", uci))
+				return
+			}
+			a.game.AddMove(pos, m)
+			a.moveHistory = append(a.moveHistory, m.String())
+			a.pos = position.MakeMove(pos, m)
+			a.appendLog(fmt.Sprintf("Stockfish: [aqua]%s[-]  time: [yellow]%s[-]",
+				m, elapsed.Round(time.Millisecond)))
+			a.refresh()
+
+			// Continue the match
+			next := movegen.LegalMoves(a.pos)
+			if next.Count() > 0 && a.mode == modeSF {
+				a.engineMove()
+			}
+		})
+	}()
+}
+
 func (a *app) engineMove() {
 	moves := movegen.LegalMoves(a.pos)
 	if moves.Count() == 0 {
@@ -129,21 +174,26 @@ func (a *app) engineMove() {
 				return
 			}
 			a.game.AddMove(pos, res.Move)
+			a.moveHistory = append(a.moveHistory, res.Move.String())
 			a.pos = position.MakeMove(pos, res.Move)
 			nps := uint64(0)
 			if elapsed.Seconds() > 0 {
 				nps = uint64(float64(res.Nodes) / elapsed.Seconds())
 			}
-			a.appendLog(fmt.Sprintf("Engine: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]  nps: [yellow]%d[-]",
+			a.appendLog(fmt.Sprintf("Ada: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]  nps: [yellow]%d[-]",
 				res.Move, formatScore(res.Score), res.Nodes, elapsed.Round(time.Millisecond), nps))
 			a.refresh()
 
-			// Continue if auto mode or game not over
-			if a.mode == modeAuto {
-				next := movegen.LegalMoves(a.pos)
-				if next.Count() > 0 {
-					a.engineMove()
-				}
+			// Continue based on mode
+			next := movegen.LegalMoves(a.pos)
+			if next.Count() == 0 {
+				return
+			}
+			switch a.mode {
+			case modeAuto:
+				a.engineMove()
+			case modeSF:
+				a.sfMove()
 			}
 		})
 	}()
@@ -166,6 +216,7 @@ func (a *app) handleInput(text string) {
 		a.appendLog("  [yellow]play [d][-]     Engine makes a move")
 		a.appendLog("  [yellow]search [d][-]   Show best move")
 		a.appendLog("  [yellow]auto[-]         Engine vs engine")
+		a.appendLog("  [yellow]sf [dur][-]     Ada vs Stockfish (e.g. sf 5s)")
 		a.appendLog("  [yellow]mode[-]         Cycle: human/auto/off")
 		a.appendLog("  [yellow]stop[-]         Stop auto-play")
 		a.appendLog("  [yellow]moves[-]        List legal moves")
@@ -286,14 +337,56 @@ func (a *app) handleInput(text string) {
 		names := []string{"human (engine replies)", "auto (engine vs engine)", "off (manual only)"}
 		a.appendLog(fmt.Sprintf("Mode: [aqua]%s[-]", names[a.mode]))
 
+	case "sf":
+		sfTime := 20 * time.Second
+		if a.timeLimit > 0 {
+			sfTime = a.timeLimit
+		}
+		if len(args) >= 2 {
+			if d, err := time.ParseDuration(args[1]); err == nil && d > 0 {
+				sfTime = d
+			}
+		}
+		if a.sf != nil {
+			a.sf.close()
+		}
+		sf, err := startUCI("stockfish")
+		if err != nil {
+			a.appendLog(fmt.Sprintf("[red]Failed to start Stockfish: %v[-]", err))
+			break
+		}
+		a.sf = sf
+		a.sfColor = a.pos.ActiveColor.Flip() // SF plays the other side
+		a.sfTime = sfTime
+		a.startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+		a.moveHistory = nil
+		a.mode = modeSF
+		colorName := "Black"
+		if a.sfColor == core.White {
+			colorName = "White"
+		}
+		a.appendLog(fmt.Sprintf("[yellow]Stockfish playing %s (think time: %s).[-] Type [yellow]stop[-] to end.", colorName, sfTime))
+		a.appendLog("[yellow]Ada moves first...[-]")
+		a.engineMove()
+
 	case "stop":
+		if a.sf != nil {
+			a.sf.close()
+			a.sf = nil
+		}
 		a.mode = modeOff
-		a.appendLog("[yellow]Auto-play stopped.[-]")
+		a.appendLog("[yellow]Stopped.[-]")
 
 	case "new":
+		if a.sf != nil {
+			a.sf.close()
+			a.sf = nil
+		}
 		a.mode = modeHuman
 		a.pos, _ = fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 		a.game = pgn.NewGame(a.pos)
+		a.startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+		a.moveHistory = nil
 		a.log.Clear()
 		fmt.Fprint(a.log, logoString())
 		a.appendLog("[yellow]New game.[-]\n")
@@ -326,6 +419,7 @@ func (a *app) handleInput(text string) {
 		m, ok := parseMove(a.pos, text)
 		if ok {
 			a.game.AddMove(a.pos, m)
+			a.moveHistory = append(a.moveHistory, m.String())
 			a.pos = position.MakeMove(a.pos, m)
 			a.appendLog(fmt.Sprintf("You: [aqua]%s[-]", m))
 			a.refresh()
@@ -444,6 +538,7 @@ func main() {
 	tv := tview.NewApplication()
 	a := newApp()
 	a.pos = startPos
+	a.startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	a.game = pgn.NewGame(startPos)
 	a.tv = tv
 
