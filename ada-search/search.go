@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	Mate   = 1_000_000
+	Mate   = 30_000
 	Inf    = Mate + 1
 	maxPly = 128
 )
@@ -184,6 +184,11 @@ func searchMain(pos *position.Position, depth int, tt *TT, stop *atomic.Bool, de
 			onDepth[0](best)
 		}
 
+		// Stop if we found a forced mate
+		if best.Score > Mate-maxPly || best.Score < -Mate+maxPly {
+			break
+		}
+
 		// Sort moves descending by score for next iteration
 		sortMoves(ordered, scores, n)
 	}
@@ -275,6 +280,100 @@ func scoreFromTT(score, ply int) int {
 	return score
 }
 
+// mvvlva returns a move ordering score: capture the most valuable victim
+// with the least valuable attacker first.
+func mvvlva(pos *position.Position, mv core.Move) int {
+	victim := pieceValue[pos.Board.Check(mv.To()).Type()]
+	if mv.MoveType() == core.MoveEnPassant {
+		victim = pieceValue[core.Pawn]
+	} else if mv.MoveType() == core.MovePromotion {
+		victim += pieceValue[mv.PromoPiece()]
+	}
+	attacker := pieceValue[pos.Board.Check(mv.From()).Type()]
+	return victim*10 - attacker
+}
+
+// quiesce searches captures and promotions until the position is quiet,
+// preventing the horizon effect from distorting the evaluation.
+func (s *searchState) quiesce(pos *position.Position, ply int, alpha, beta int) int {
+	if s.stop != nil && s.stop.Load() {
+		return 0
+	}
+
+	inCheck := movegen.InCheck(pos)
+
+	// Standing pat: use static eval as a lower bound.
+	// Not valid when in check — must resolve it.
+	var stand int
+	if !inCheck {
+		stand = Evaluate(pos)
+		if stand >= beta {
+			return beta
+		}
+		if stand > alpha {
+			alpha = stand
+		}
+		// Big delta pruning: if even capturing the most valuable piece
+		// can't raise the score above alpha, skip all captures.
+		if stand+pieceValue[core.Queen]+200 < alpha {
+			return alpha
+		}
+	}
+
+	// LegalCaptures returns only captures/promotions when not in check,
+	// or all legal moves when in check (must escape).
+	moves := movegen.LegalCaptures(pos)
+
+	if moves.Count() == 0 && inCheck {
+		return -(Mate - ply) // checkmate
+	}
+
+	for i := 0; i < moves.Count(); i++ {
+		// MVV-LVA ordering: pick the best remaining capture
+		bestJ := i
+		bestScore := mvvlva(pos, moves.Get(i))
+		for j := i + 1; j < moves.Count(); j++ {
+			s := mvvlva(pos, moves.Get(j))
+			if s > bestScore {
+				bestScore = s
+				bestJ = j
+			}
+		}
+		if bestJ != i {
+			moves.Swap(i, bestJ)
+		}
+
+		mv := moves.Get(i)
+
+		// Per-capture delta pruning: if capturing this piece can't
+		// raise the score above alpha, skip it.
+		if !inCheck {
+			capturedVal := pieceValue[pos.Board.Check(mv.To()).Type()]
+			if mv.MoveType() == core.MoveEnPassant {
+				capturedVal = pieceValue[core.Pawn]
+			} else if mv.MoveType() == core.MovePromotion {
+				capturedVal += pieceValue[mv.PromoPiece()]
+			}
+			if stand+capturedVal+200 < alpha {
+				continue
+			}
+		}
+
+		child := position.MakeMove(pos, mv)
+		s.nodes++
+		score := -s.quiesce(child, ply+1, -beta, -alpha)
+
+		if score >= beta {
+			return beta
+		}
+		if score > alpha {
+			alpha = score
+		}
+	}
+
+	return alpha
+}
+
 func (s *searchState) alphabeta(pos *position.Position, depth, ply int, alpha, beta int, allowNull bool) int {
 	if s.stop != nil && s.stop.Load() {
 		return 0
@@ -291,7 +390,7 @@ func (s *searchState) alphabeta(pos *position.Position, depth, ply int, alpha, b
 	}
 
 	if depth == 0 {
-		return Evaluate(pos)
+		return s.quiesce(pos, ply, alpha, beta)
 	}
 
 	// TT probe

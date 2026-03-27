@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +18,7 @@ import (
 	"github.com/WilliamDann/AdaEngine/ada-search"
 )
 
-const defaultDepth = 4
+const defaultDepth = 20
 
 const (
 	modeHuman = 0 // human vs engine (engine replies after human moves)
@@ -44,8 +43,9 @@ type app struct {
 
 func newApp() *app {
 	return &app{
-		depth:   defaultDepth,
-		threads: runtime.NumCPU(),
+		depth:     defaultDepth,
+		threads:   8,
+		timeLimit: 20 * time.Second,
 	}
 }
 
@@ -408,16 +408,18 @@ func clipboard(text string) error {
 }
 
 func formatScore(score int) string {
-	if score >= search.Mate-500 {
+	if score >= search.Mate-maxPly {
 		moves := (search.Mate - score + 1) / 2
 		return fmt.Sprintf("mate in %d", moves)
 	}
-	if score <= -search.Mate+500 {
+	if score <= -search.Mate+maxPly {
 		moves := (search.Mate + score + 1) / 2
 		return fmt.Sprintf("mated in %d", moves)
 	}
 	return fmt.Sprintf("%.2f", float64(score)/100.0)
 }
+
+const maxPly = 128 // matches search.maxPly for mate score detection
 
 func parseMove(pos *position.Position, input string) (core.Move, bool) {
 	input = strings.TrimSpace(input)

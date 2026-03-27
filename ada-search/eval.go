@@ -16,17 +16,20 @@ var pieceValue = [7]int{
 	0,    // King (not counted)
 }
 
-// Advancement bonus per rank in centipawns. Rank 0 (home rank) gets nothing,
-// rank 7 (promotion rank) gets the most.
+// Advancement bonus per rank in centipawns (for non-pawn pieces).
 var advanceBonus = [7]int{
-	0,   // None
-	15,  // Pawn — strong push toward promotion
-	3,   // Knight
-	2,   // Bishop
-	1,   // Rook
-	1,   // Queen
-	0,   // King
+	0,  // None
+	0,  // Pawn — uses pawnAdvance table instead
+	3,  // Knight
+	2,  // Bishop
+	1,  // Rook
+	1,  // Queen
+	0,  // King
 }
+
+// Pawn advancement bonus by rank. Flat for early pushes, steep near promotion.
+//            rank: 0   1   2   3   4    5    6    7
+var pawnAdvance = [8]int{0, 0, 5, 5, 15, 30, 60, 100}
 
 // Center bonus per piece type, scaled by closeness to center (0-3).
 var centerBonus = [7]int{
@@ -53,10 +56,11 @@ var (
 	centerDist [64]int           // Chebyshev distance from center (0-3)
 	kingZone   [64]core.Bitboard // 3x3 area around each square
 
-	rankMask [8]core.Bitboard // all squares on rank r
-	fileMask [8]core.Bitboard // all squares on file f
-	diagMask [15]core.Bitboard // all squares on diagonal (r-f+7)
-	adiagMask [15]core.Bitboard // all squares on anti-diagonal (r+f)
+	rankMask  [8]core.Bitboard    // all squares on rank r
+	fileMask  [8]core.Bitboard    // all squares on file f
+	diagMask  [15]core.Bitboard   // all squares on diagonal (r-f+7)
+	adiagMask [15]core.Bitboard   // all squares on anti-diagonal (r+f)
+	between   [64][64]core.Bitboard // squares strictly between two squares on the same line
 )
 
 func init() {
@@ -86,6 +90,44 @@ func init() {
 	}
 }
 
+func sign(x int) int {
+	if x > 0 {
+		return 1
+	}
+	if x < 0 {
+		return -1
+	}
+	return 0
+}
+
+func init() {
+	// Precompute between masks: squares strictly between a and b
+	// on the same rank, file, or diagonal.
+	for a := 0; a < 64; a++ {
+		ar, af := a/8, a%8
+		for b := 0; b < 64; b++ {
+			br, bf := b/8, b%8
+			dr, df := br-ar, bf-af
+			// Must be on same rank, file, or diagonal
+			if dr == 0 && df == 0 {
+				continue
+			}
+			if dr != 0 && df != 0 && abs(dr) != abs(df) {
+				continue
+			}
+			sr, sf := sign(dr), sign(df)
+			var mask core.Bitboard
+			r, f := ar+sr, af+sf
+			for r != br || f != bf {
+				mask = mask.Set(core.Square(r*8 + f))
+				r += sr
+				f += sf
+			}
+			between[a][b] = mask
+		}
+	}
+}
+
 func abs(x int) int {
 	if x < 0 {
 		return -x
@@ -103,19 +145,34 @@ func findKingSq(pos *position.Position, color core.Color) int {
 
 // lineAttacks counts how many rooks/queens share a rank or file with the
 // king, and how many bishops/queens share a diagonal, for one color
-// attacking the given king square.
+// attacking the given king square. Only counted if there is at most one
+// piece between the attacker and the king.
 func lineAttacks(pos *position.Position, color core.Color, kingSq int) int {
 	kr, kf := kingSq/8, kingSq%8
-	rookLines := rankMask[kr].Union(fileMask[kf])
-	diagLines := diagMask[kr-kf+7].Union(adiagMask[kr+kf])
+	occupied := pos.Board.Occupied()
+	count := 0
 
+	// Rooks and queens on same rank or file
 	rooks := pos.Board.Pieces(core.NewPiece(core.Rook, color)).
 		Union(pos.Board.Pieces(core.NewPiece(core.Queen, color)))
+	onLine := rankMask[kr].Union(fileMask[kf]).Intersection(rooks)
+	for sq := range onLine.Squares() {
+		if between[sq][kingSq].Intersection(occupied).Count() <= 1 {
+			count++
+		}
+	}
+
+	// Bishops and queens on same diagonal
 	bishops := pos.Board.Pieces(core.NewPiece(core.Bishop, color)).
 		Union(pos.Board.Pieces(core.NewPiece(core.Queen, color)))
+	onDiag := diagMask[kr-kf+7].Union(adiagMask[kr+kf]).Intersection(bishops)
+	for sq := range onDiag.Squares() {
+		if between[sq][kingSq].Intersection(occupied).Count() <= 1 {
+			count++
+		}
+	}
 
-	return rookLines.Intersection(rooks).Count() +
-		diagLines.Intersection(bishops).Count()
+	return count
 }
 
 // Evaluate returns a score in centipawns from the active color's perspective.
@@ -135,12 +192,22 @@ func Evaluate(pos *position.Position) int {
 
 		ws := 0
 		for sq := range white.Squares() {
-			ws += val + adv*(sq/8) + cb*(3-centerDist[sq])
+			r := sq / 8
+			if pt == core.Pawn {
+				ws += val + pawnAdvance[r] + cb*(3-centerDist[sq])
+			} else {
+				ws += val + adv*r + cb*(3-centerDist[sq])
+			}
 		}
 
 		bs := 0
 		for sq := range black.Squares() {
-			bs += val + adv*(7-sq/8) + cb*(3-centerDist[sq])
+			r := sq / 8
+			if pt == core.Pawn {
+				bs += val + pawnAdvance[7-r] + cb*(3-centerDist[sq])
+			} else {
+				bs += val + adv*(7-r) + cb*(3-centerDist[sq])
+			}
 		}
 
 		if pos.ActiveColor == core.White {
