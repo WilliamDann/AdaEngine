@@ -16,18 +16,83 @@ var pieceValue = [7]int{
 	0,    // King (not counted)
 }
 
+// Advancement bonus per rank in centipawns. Rank 0 (home rank) gets nothing,
+// rank 7 (promotion rank) gets the most.
+var advanceBonus = [7]int{
+	0,  // None
+	5,  // Pawn
+	3,  // Knight
+	2,  // Bishop
+	1,  // Rook
+	1,  // Queen
+	0,  // King
+}
+
+// Proximity bonus per piece type, awarded per unit of closeness to the
+// opponent king (14 - manhattan distance). Higher values make the piece
+// gravitate toward the enemy king.
+var proximityBonus = [7]int{
+	0,  // None
+	0,  // Pawn
+	2,  // Knight
+	1,  // Bishop
+	1,  // Rook
+	3,  // Queen
+	0,  // King
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func findKing(pos *position.Position, color core.Color) (int, int) {
+	bb := pos.Board.Pieces(core.NewPiece(core.King, color))
+	for sq := range bb.Squares() {
+		return sq / 8, sq % 8
+	}
+	return 0, 0
+}
+
 // Evaluate returns a score in centipawns from the active color's perspective.
 // Positive means the active color is better.
 func Evaluate(pos *position.Position) int {
+	wkr, wkf := findKing(pos, core.White)
+	bkr, bkf := findKing(pos, core.Black)
+
 	score := 0
 	for pt := core.PieceType(1); pt <= 5; pt++ {
 		val := pieceValue[pt]
-		white := pos.Board.Pieces(core.NewPiece(pt, core.White)).Count()
-		black := pos.Board.Pieces(core.NewPiece(pt, core.Black)).Count()
+		adv := advanceBonus[pt]
+		prox := proximityBonus[pt]
+
+		white := pos.Board.Pieces(core.NewPiece(pt, core.White))
+		black := pos.Board.Pieces(core.NewPiece(pt, core.Black))
+
+		ws := 0
+		for sq := range white.Squares() {
+			r, f := sq/8, sq%8
+			ws += val + adv*r
+			if prox > 0 {
+				ws += prox * (14 - abs(r-bkr) - abs(f-bkf))
+			}
+		}
+
+		bs := 0
+		for sq := range black.Squares() {
+			r, f := sq/8, sq%8
+			bs += val + adv*(7-r)
+			if prox > 0 {
+				bs += prox * (14 - abs(r-wkr) - abs(f-wkf))
+			}
+		}
+
 		if pos.ActiveColor == core.White {
-			score += val * (white - black)
+			score += ws - bs
 		} else {
-			score += val * (black - white)
+			score += bs - ws
 		}
 	}
 	return score

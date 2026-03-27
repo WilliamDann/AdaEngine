@@ -344,11 +344,12 @@ func formatScore(score int) string {
 }
 
 func parseMove(pos *position.Position, input string) (core.Move, bool) {
-	input = strings.ToLower(strings.TrimSpace(input))
+	input = strings.TrimSpace(input)
 	moves := movegen.LegalMoves(pos)
 	for i := 0; i < moves.Count(); i++ {
 		m := moves.Get(i)
-		if m.String() == input {
+		// Match UCI (e.g. e2e4) or SAN (e.g. e4, Nf3, O-O)
+		if m.String() == strings.ToLower(input) || pgn.SAN(pos, m) == input {
 			return m, true
 		}
 	}
