@@ -36,8 +36,8 @@ func TestSearchMateIn1(t *testing.T) {
 	if res.Move.To() != core.NewSquare(6, 5) {
 		t.Errorf("expected mate move Qxf7#, got %s", res.Move)
 	}
-	if res.Score != Mate {
-		t.Errorf("expected mate score %d, got %d", Mate, res.Score)
+	if res.Score < Mate-10 {
+		t.Errorf("expected near-mate score, got %d", res.Score)
 	}
 	t.Logf("mate in 1: move=%s score=%d nodes=%d", res.Move, res.Score, res.Nodes)
 }

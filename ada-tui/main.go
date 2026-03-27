@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -26,10 +28,12 @@ const (
 )
 
 type app struct {
-	pos   *position.Position
-	depth int
-	mode  int
-	game  *pgn.Game
+	pos       *position.Position
+	depth     int
+	threads   int
+	timeLimit time.Duration // 0 means use depth
+	mode      int
+	game      *pgn.Game
 
 	tv    *tview.Application
 	board *KittyImage
@@ -40,8 +44,17 @@ type app struct {
 
 func newApp() *app {
 	return &app{
-		depth: defaultDepth,
+		depth:   defaultDepth,
+		threads: runtime.NumCPU(),
 	}
+}
+
+// doSearch runs either a timed or depth-limited search based on app settings.
+func (a *app) doSearch(pos *position.Position, onDepth func(search.Result)) search.Result {
+	if a.timeLimit > 0 {
+		return search.SearchTimedParallel(pos, a.timeLimit, a.threads, onDepth)
+	}
+	return search.SearchParallel(pos, a.depth, a.threads, onDepth)
 }
 
 func (a *app) appendLog(msg string) {
@@ -72,8 +85,12 @@ func (a *app) updateInfo() {
 		status = " [yellow]STALEMATE[-]"
 	}
 
-	fmt.Fprintf(a.info, " %s to move%s  |  Depth: [aqua]%d[-]  |  Moves: [aqua]%d[-]  |  Move [aqua]%d[-]",
-		color, status, a.depth, moves.Count(), a.pos.Fullmoves)
+	limit := fmt.Sprintf("Depth: [aqua]%d[-]", a.depth)
+	if a.timeLimit > 0 {
+		limit = fmt.Sprintf("Time: [aqua]%s[-]", a.timeLimit)
+	}
+	fmt.Fprintf(a.info, " %s to move%s  |  %s  |  Threads: [aqua]%d[-]  |  Moves: [aqua]%d[-]  |  Move [aqua]%d[-]",
+		color, status, limit, a.threads, moves.Count(), a.pos.Fullmoves)
 }
 
 func (a *app) refresh() {
@@ -83,17 +100,23 @@ func (a *app) refresh() {
 
 // engineMove starts an engine search and plays the result. If the game isn't
 // over and auto mode is on, it schedules another move.
+func (a *app) searchLabel() string {
+	if a.timeLimit > 0 {
+		return fmt.Sprintf("%s, %d threads", a.timeLimit, a.threads)
+	}
+	return fmt.Sprintf("depth 1..%d, %d threads", a.depth, a.threads)
+}
+
 func (a *app) engineMove() {
 	moves := movegen.LegalMoves(a.pos)
 	if moves.Count() == 0 {
 		return
 	}
-	d := a.depth
 	pos := a.pos
-	a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
+	a.appendLog(fmt.Sprintf("[yellow]Thinking (%s)...[-]", a.searchLabel()))
 	go func() {
 		start := time.Now()
-		res := search.Search(pos, d, func(r search.Result) {
+		res := a.doSearch(pos, func(r search.Result) {
 			elapsed := time.Since(start)
 			a.tv.QueueUpdateDraw(func() {
 				a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -147,6 +170,8 @@ func (a *app) handleInput(text string) {
 		a.appendLog("  [yellow]stop[-]         Stop auto-play")
 		a.appendLog("  [yellow]moves[-]        List legal moves")
 		a.appendLog("  [yellow]depth <n>[-]    Set search depth")
+		a.appendLog("  [yellow]time <dur>[-]   Set time limit (e.g. 5s, 500ms)")
+		a.appendLog("  [yellow]threads <n>[-]  Set thread count")
 		a.appendLog("  [yellow]fen <str>[-]    Load position")
 		a.appendLog("  [yellow]new[-]          New game")
 		a.appendLog("  [yellow]pgn[-]          Show PGN of current game")
@@ -165,17 +190,41 @@ func (a *app) handleInput(text string) {
 			a.appendLog(fmt.Sprintf("Depth: [aqua]%d[-]", a.depth))
 		} else if d, err := strconv.Atoi(args[1]); err == nil && d > 0 {
 			a.depth = d
+			a.timeLimit = 0 // switch to depth mode
 			a.appendLog(fmt.Sprintf("Depth set to [aqua]%d[-]", d))
 			a.updateInfo()
 		}
 
+	case "time":
+		if len(args) < 2 {
+			if a.timeLimit > 0 {
+				a.appendLog(fmt.Sprintf("Time limit: [aqua]%s[-]", a.timeLimit))
+			} else {
+				a.appendLog("Time limit: [aqua]off[-] (using depth)")
+			}
+		} else if dur, err := time.ParseDuration(args[1]); err == nil && dur > 0 {
+			a.timeLimit = dur
+			a.appendLog(fmt.Sprintf("Time limit set to [aqua]%s[-]", dur))
+			a.updateInfo()
+		} else {
+			a.appendLog("[red]Usage: time <duration> (e.g. 5s, 500ms, 1m)[-]")
+		}
+
+	case "threads", "t":
+		if len(args) < 2 {
+			a.appendLog(fmt.Sprintf("Threads: [aqua]%d[-]", a.threads))
+		} else if n, err := strconv.Atoi(args[1]); err == nil && n > 0 {
+			a.threads = n
+			a.appendLog(fmt.Sprintf("Threads set to [aqua]%d[-]", n))
+			a.updateInfo()
+		}
+
 	case "search", "s":
-		d := a.parseDepthArg(args)
-		a.appendLog(fmt.Sprintf("[yellow]Searching depth 1..%d...[-]", d))
+		a.appendLog(fmt.Sprintf("[yellow]Searching (%s)...[-]", a.searchLabel()))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d, func(r search.Result) {
+			res := a.doSearch(pos, func(r search.Result) {
 				elapsed := time.Since(start)
 				a.tv.QueueUpdateDraw(func() {
 					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -198,12 +247,11 @@ func (a *app) handleInput(text string) {
 		}()
 
 	case "play", "p":
-		d := a.parseDepthArg(args)
-		a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
+		a.appendLog(fmt.Sprintf("[yellow]Thinking (%s)...[-]", a.searchLabel()))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d, func(r search.Result) {
+			res := a.doSearch(pos, func(r search.Result) {
 				elapsed := time.Since(start)
 				a.tv.QueueUpdateDraw(func() {
 					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -267,8 +315,12 @@ func (a *app) handleInput(text string) {
 		}
 
 	case "pgn":
+		pgnStr := a.game.String()
 		a.appendLog("[aqua]--- PGN ---[-]")
-		a.appendLog(a.game.String())
+		a.appendLog(pgnStr)
+		if err := clipboard(pgnStr); err == nil {
+			a.appendLog("[yellow]Copied to clipboard.[-]")
+		}
 
 	default:
 		m, ok := parseMove(a.pos, text)
@@ -333,12 +385,36 @@ func logoString() string {
 	return sb.String()
 }
 
+// clipboard copies text to the system clipboard using xclip, xsel, or wl-copy.
+func clipboard(text string) error {
+	for _, tool := range []string{"wl-copy", "xclip", "xsel"} {
+		path, err := exec.LookPath(tool)
+		if err != nil {
+			continue
+		}
+		var cmd *exec.Cmd
+		switch tool {
+		case "xclip":
+			cmd = exec.Command(path, "-selection", "clipboard")
+		case "xsel":
+			cmd = exec.Command(path, "--clipboard", "--input")
+		default:
+			cmd = exec.Command(path)
+		}
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	return fmt.Errorf("no clipboard tool found")
+}
+
 func formatScore(score int) string {
 	if score >= search.Mate-500 {
-		return "mate"
+		moves := (search.Mate - score + 1) / 2
+		return fmt.Sprintf("mate in %d", moves)
 	}
 	if score <= -search.Mate+500 {
-		return "-mate"
+		moves := (search.Mate + score + 1) / 2
+		return fmt.Sprintf("mated in %d", moves)
 	}
 	return fmt.Sprintf("%.2f", float64(score)/100.0)
 }

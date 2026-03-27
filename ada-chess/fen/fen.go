@@ -184,6 +184,9 @@ func Parse(fen string) (*position.Position, error) {
 	}
 	pos.Fullmoves = fullmove
 
+	// compute zobrist hash
+	pos.Hash = position.ComputeHash(pos)
+
 	// ok
 	return pos, nil
 }

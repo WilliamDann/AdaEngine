@@ -88,3 +88,7 @@ func (ml *MoveList) Get(i int) Move {
 func (ml *MoveList) Clear() {
 	ml.count = 0
 }
+
+func (ml *MoveList) Swap(i, j int) {
+	ml.moves[i], ml.moves[j] = ml.moves[j], ml.moves[i]
+}
