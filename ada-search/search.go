@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	Mate = 1_000_000
+	Mate = 30_000
 	Inf  = Mate + 1
 )
 

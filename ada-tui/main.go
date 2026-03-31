@@ -335,10 +335,10 @@ func logoString() string {
 
 func formatScore(score int) string {
 	if score >= search.Mate-500 {
-		return "mate"
+		return "mate in " + strconv.Itoa(score - search.Mate)
 	}
 	if score <= -search.Mate+500 {
-		return "-mate"
+		return "mate in -" + strconv.Itoa(score + (-search.Mate))
 	}
 	return fmt.Sprintf("%.2f", float64(score)/100.0)
 }
