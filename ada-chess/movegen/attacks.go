@@ -36,7 +36,7 @@ func IsAttacked(pos *position.Position, sq core.Square, by core.Color) bool {
 func InCheck(pos *position.Position) bool {
 	kingBB := pos.Board.Pieces(core.NewPiece(core.King, pos.ActiveColor))
 	for sq := range kingBB.Squares() {
-		return IsAttacked(pos, core.Square(sq), pos.ActiveColor.Flip())
+		return IsAttacked(pos, sq, pos.ActiveColor.Flip())
 	}
 	return false
 }

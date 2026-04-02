@@ -128,7 +128,7 @@ func inCheck(pos *position.Position) bool {
 	enemy := color.Flip()
 	kingBB := pos.Board.Pieces(core.NewPiece(core.King, color))
 	for sq := range kingBB.Squares() {
-		return !movegen.Attackers(pos, core.Square(sq), enemy).Empty()
+		return !movegen.Attackers(pos, sq, enemy).Empty()
 	}
 	return false
 }

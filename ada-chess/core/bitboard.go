@@ -64,10 +64,10 @@ func (board Bitboard) Empty() bool {
 
 
 // iterate over set squares using Least Signifigant Bit
-func (board Bitboard) Squares() iter.Seq[int]  {
-	return func(yield func(int) bool) {
+func (board Bitboard) Squares() iter.Seq[Square]  {
+	return func(yield func(Square) bool) {
 		for board != 0 {
-			sq := bits.TrailingZeros64(uint64(board))
+			sq := Square(bits.TrailingZeros64(uint64(board)))
 			board &= board - 1
 			if !yield(sq) {
 				return

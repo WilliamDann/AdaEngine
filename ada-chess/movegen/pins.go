@@ -20,7 +20,7 @@ func ComputePins(pos *position.Position) PinState {
 	kingBB := pos.Board.Pieces(core.NewPiece(core.King, pos.ActiveColor))
 	var kingSq core.Square
 	for sq := range kingBB.Squares() {
-		kingSq = core.Square(sq)
+		kingSq = sq
 		break
 	}
 
@@ -42,12 +42,12 @@ func ComputePins(pos *position.Position) PinState {
 	// Rank/file pins
 	pinners := RookMoves(kingSq, transparent).Intersection(enemyRQ)
 	for pSq := range pinners.Squares() {
-		pinnerSq := core.Square(pSq)
+		pinnerSq := pSq
 		between := rookBetween(kingSq, pinnerSq)
 		pinned := between.Intersection(friendly)
 		if pinned.Count() == 1 {
 			for s := range pinned.Squares() {
-				state.Pinned = state.Pinned.Set(core.Square(s))
+				state.Pinned = state.Pinned.Set(s)
 				state.Rays[s] = between.Set(pinnerSq)
 			}
 		}
@@ -56,12 +56,12 @@ func ComputePins(pos *position.Position) PinState {
 	// Diagonal pins
 	pinners = BishopMoves(kingSq, transparent).Intersection(enemyBQ)
 	for pSq := range pinners.Squares() {
-		pinnerSq := core.Square(pSq)
+		pinnerSq := pSq
 		between := bishopBetween(kingSq, pinnerSq)
 		pinned := between.Intersection(friendly)
 		if pinned.Count() == 1 {
 			for s := range pinned.Squares() {
-				state.Pinned = state.Pinned.Set(core.Square(s))
+				state.Pinned = state.Pinned.Set(s)
 				state.Rays[s] = between.Set(pinnerSq)
 			}
 		}

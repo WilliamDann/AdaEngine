@@ -33,7 +33,7 @@ func LegalMoves(pos *position.Position) core.MoveList {
 	if numCheckers == 1 {
 		var checkerSq core.Square
 		for sq := range checkers.Squares() {
-			checkerSq = core.Square(sq)
+			checkerSq = sq
 			break
 		}
 		// Must capture the checker or block the ray
@@ -62,7 +62,7 @@ func LegalMoves(pos *position.Position) core.MoveList {
 func kingSquare(pos *position.Position, color core.Color) core.Square {
 	bb := pos.Board.Pieces(core.NewPiece(core.King, color))
 	for sq := range bb.Squares() {
-		return core.Square(sq)
+		return sq
 	}
 	return core.InvalidSquare
 }
@@ -96,9 +96,8 @@ func genKingMoves(pos *position.Position, ml *core.MoveList, kingSq core.Square,
 	targets := KingMoves(kingSq).Subtract(friendly)
 	occ := occupied.Clear(kingSq) // remove king so sliders see through
 	for sq := range targets.Squares() {
-		to := core.Square(sq)
-		if !isAttackedBy(pos, to, enemy, occ) {
-			ml.Add(core.NewMove(kingSq, to))
+		if !isAttackedBy(pos, sq, enemy, occ) {
+			ml.Add(core.NewMove(kingSq, sq))
 		}
 	}
 }
@@ -144,31 +143,29 @@ func genCastling(pos *position.Position, ml *core.MoveList, kingSq core.Square, 
 func genPieceMoves(pos *position.Position, ml *core.MoveList, pieceType core.PieceType, checkMask core.Bitboard, pins PinState, color core.Color, friendly, occupied core.Bitboard) {
 	pieces := pos.Board.Pieces(core.NewPiece(pieceType, color))
 	for sq := range pieces.Squares() {
-		from := core.Square(sq)
-
 		var targets core.Bitboard
 		switch pieceType {
 		case core.Knight:
 			// A pinned knight can never move (no knight move stays on a pin ray)
-			if pins.Pinned.Check(from) {
+			if pins.Pinned.Check(sq) {
 				continue
 			}
-			targets = KnightMoves(from)
+			targets = KnightMoves(sq)
 		case core.Bishop:
-			targets = BishopMoves(from, occupied)
+			targets = BishopMoves(sq, occupied)
 		case core.Rook:
-			targets = RookMoves(from, occupied)
+			targets = RookMoves(sq, occupied)
 		case core.Queen:
-			targets = QueenMoves(from, occupied)
+			targets = QueenMoves(sq, occupied)
 		}
 
 		targets = targets.Subtract(friendly).Intersection(checkMask)
-		if pins.Pinned.Check(from) {
-			targets = targets.Intersection(pins.Rays[from])
+		if pins.Pinned.Check(sq) {
+			targets = targets.Intersection(pins.Rays[sq])
 		}
 
 		for to := range targets.Squares() {
-			ml.Add(core.NewMove(from, core.Square(to)))
+			ml.Add(core.NewMove(sq, to))
 		}
 	}
 }
@@ -189,46 +186,44 @@ func genPawnMoves(pos *position.Position, ml *core.MoveList, checkMask core.Bitb
 	}
 
 	for sq := range pawns.Squares() {
-		from := core.Square(sq)
-
 		restriction := checkMask
-		if pins.Pinned.Check(from) {
-			restriction = restriction.Intersection(pins.Rays[from])
+		if pins.Pinned.Check(sq) {
+			restriction = restriction.Intersection(pins.Rays[sq])
 		}
 
 		// Single push
-		to := core.Square(int(from) + pushDir)
+		to := core.Square(int(sq) + pushDir)
 		if to.Valid() && !occupied.Check(to) {
 			if restriction.Check(to) {
 				if to.Rank() == promoRank {
-					addPromotions(ml, from, to)
+					addPromotions(ml, sq, to)
 				} else {
-					ml.Add(core.NewMove(from, to))
+					ml.Add(core.NewMove(sq, to))
 				}
 			}
 
 			// Double push from starting rank
-			if from.Rank() == startRank {
-				to2 := core.Square(int(from) + 2*pushDir)
+			if sq.Rank() == startRank {
+				to2 := core.Square(int(sq) + 2*pushDir)
 				if !occupied.Check(to2) && restriction.Check(to2) {
-					ml.Add(core.NewMove(from, to2))
+					ml.Add(core.NewMove(sq, to2))
 				}
 			}
 		}
 
 		// Captures (including promotions)
-		attacks := PawnAttacks(from, color).Intersection(enemies).Intersection(restriction)
+		attacks := PawnAttacks(sq, color).Intersection(enemies).Intersection(restriction)
 		for capSq := range attacks.Squares() {
-			capTo := core.Square(capSq)
+			capTo := capSq
 			if capTo.Rank() == promoRank {
-				addPromotions(ml, from, capTo)
+				addPromotions(ml, sq, capTo)
 			} else {
-				ml.Add(core.NewMove(from, capTo))
+				ml.Add(core.NewMove(sq, capTo))
 			}
 		}
 
 		// En passant
-		if pos.EnPassant.Valid() && PawnAttacks(from, color).Check(pos.EnPassant) {
+		if pos.EnPassant.Valid() && PawnAttacks(sq, color).Check(pos.EnPassant) {
 			// The captured pawn sits on the same rank as our pawn
 			capturedSq := core.Square(int(pos.EnPassant) - pushDir)
 
@@ -236,17 +231,17 @@ func genPawnMoves(pos *position.Position, ml *core.MoveList, checkMask core.Bitb
 			epValid := restriction.Check(pos.EnPassant) || checkMask.Check(capturedSq)
 
 			// Pin check: if pinned, the ep square must be on the pin ray
-			if pins.Pinned.Check(from) && !pins.Rays[from].Check(pos.EnPassant) {
+			if pins.Pinned.Check(sq) && !pins.Rays[sq].Check(pos.EnPassant) {
 				epValid = false
 			}
 
 			// Horizontal discovery: removing both pawns from the rank may expose the king
 			if epValid {
-				epValid = isEPSafe(pos, from, pos.EnPassant, capturedSq, kingSq, enemy, occupied)
+				epValid = isEPSafe(pos, sq, pos.EnPassant, capturedSq, kingSq, enemy, occupied)
 			}
 
 			if epValid {
-				ml.Add(core.NewEnPassant(from, pos.EnPassant))
+				ml.Add(core.NewEnPassant(sq, pos.EnPassant))
 			}
 		}
 	}

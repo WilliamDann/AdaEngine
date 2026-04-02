@@ -48,19 +48,19 @@ func abs(x int) int {
 	return x
 }
 
-func findKing(pos *position.Position, color core.Color) (int, int) {
+func findKing(pos *position.Position, color core.Color) core.Square {
 	bb := pos.Board.Pieces(core.NewPiece(core.King, color))
 	for sq := range bb.Squares() {
-		return sq / 8, sq % 8
+		return sq
 	}
-	return 0, 0
+	return core.Square(0)
 }
 
 // Evaluate returns a score in centipawns from the active color's perspective.
 // Positive means the active color is better.
 func Evaluate(pos *position.Position) int {
-	wkr, wkf := findKing(pos, core.White)
-	bkr, bkf := findKing(pos, core.Black)
+	wksq := findKing(pos, core.White)
+	bksq := findKing(pos, core.Black)
 
 	score := 0
 	for pt := core.PieceType(1); pt <= 5; pt++ {
@@ -73,19 +73,19 @@ func Evaluate(pos *position.Position) int {
 
 		ws := 0
 		for sq := range white.Squares() {
-			r, f := sq/8, sq%8
+			r, f := sq.Rank(), sq.File()
 			ws += val + adv*r
 			if prox > 0 {
-				ws += prox * (14 - abs(r-bkr) - abs(f-bkf))
+				ws += prox * (14 - abs(r-bksq.Rank()) - abs(f-bksq.File()))
 			}
 		}
 
 		bs := 0
 		for sq := range black.Squares() {
-			r, f := sq/8, sq%8
+			r, f := sq.Rank(), sq.File()
 			bs += val + adv*(7-r)
 			if prox > 0 {
-				bs += prox * (14 - abs(r-wkr) - abs(f-wkf))
+				bs += prox * (14 - abs(r-wksq.Rank()) - abs(f-wksq.File()))
 			}
 		}
 
