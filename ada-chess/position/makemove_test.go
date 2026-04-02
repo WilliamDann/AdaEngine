@@ -19,7 +19,16 @@ func setupPosition(pieces map[core.Square]core.Piece, active core.Color, castlin
 	for sq, p := range pieces {
 		pos.Board.Set(sq, p)
 	}
+	pos.Zobrist = pos.ComputeZobrist()
 	return pos
+}
+
+// helper to check incremental zobrist matches full recompute
+func assertZobrist(t *testing.T, pos *Position) {
+	t.Helper()
+	if got, want := pos.Zobrist, pos.ComputeZobrist(); got != want {
+		t.Errorf("zobrist mismatch: incremental=%x, computed=%x", got, want)
+	}
 }
 
 func TestNormalMove(t *testing.T) {
@@ -491,5 +500,139 @@ func TestCapture(t *testing.T) {
 	}
 	if next.Board.Check(e5) != wKnight {
 		t.Error("capturing piece should occupy target square")
+	}
+}
+
+// --- Zobrist hash tests ---
+
+func TestZobristNormalMove(t *testing.T) {
+	e2 := core.NewSquare(1, 4)
+	e4 := core.NewSquare(3, 4)
+	wPawn := core.NewPiece(core.Pawn, core.White)
+
+	pos := setupPosition(map[core.Square]core.Piece{e2: wPawn}, core.White, NoCastling, core.InvalidSquare)
+	next := MakeMove(pos, core.NewMove(e2, e4))
+	assertZobrist(t, next)
+}
+
+func TestZobristCapture(t *testing.T) {
+	d4 := core.NewSquare(3, 3)
+	e5 := core.NewSquare(4, 4)
+	wKnight := core.NewPiece(core.Knight, core.White)
+	bPawn := core.NewPiece(core.Pawn, core.Black)
+
+	pos := setupPosition(map[core.Square]core.Piece{d4: wKnight, e5: bPawn}, core.White, NoCastling, core.InvalidSquare)
+	next := MakeMove(pos, core.NewMove(d4, e5))
+	assertZobrist(t, next)
+}
+
+func TestZobristPromotion(t *testing.T) {
+	e7 := core.NewSquare(6, 4)
+	e8 := core.NewSquare(7, 4)
+	wPawn := core.NewPiece(core.Pawn, core.White)
+
+	pos := setupPosition(map[core.Square]core.Piece{e7: wPawn}, core.White, NoCastling, core.InvalidSquare)
+	next := MakeMove(pos, core.NewPromotion(e7, e8, core.Queen))
+	assertZobrist(t, next)
+}
+
+func TestZobristPromotionCapture(t *testing.T) {
+	e7 := core.NewSquare(6, 4)
+	d8 := core.NewSquare(7, 3)
+	wPawn := core.NewPiece(core.Pawn, core.White)
+	bRook := core.NewPiece(core.Rook, core.Black)
+
+	pos := setupPosition(map[core.Square]core.Piece{e7: wPawn, d8: bRook}, core.White, NoCastling, core.InvalidSquare)
+	next := MakeMove(pos, core.NewPromotion(e7, d8, core.Queen))
+	assertZobrist(t, next)
+}
+
+func TestZobristEnPassant(t *testing.T) {
+	e5 := core.NewSquare(4, 4)
+	d5 := core.NewSquare(4, 3)
+	d6 := core.NewSquare(5, 3)
+	wPawn := core.NewPiece(core.Pawn, core.White)
+	bPawn := core.NewPiece(core.Pawn, core.Black)
+
+	pos := setupPosition(map[core.Square]core.Piece{e5: wPawn, d5: bPawn}, core.White, NoCastling, d6)
+	next := MakeMove(pos, core.NewEnPassant(e5, d6))
+	assertZobrist(t, next)
+}
+
+func TestZobristCastling(t *testing.T) {
+	tests := []struct {
+		name     string
+		kingSq   core.Square
+		kingTo   core.Square
+		rookSq   core.Square
+		color    core.Color
+		castling CastlingRights
+	}{
+		{"white kingside", core.NewSquare(0, 4), core.NewSquare(0, 6), core.NewSquare(0, 7), core.White, AllCastling},
+		{"white queenside", core.NewSquare(0, 4), core.NewSquare(0, 2), core.NewSquare(0, 0), core.White, AllCastling},
+		{"black kingside", core.NewSquare(7, 4), core.NewSquare(7, 6), core.NewSquare(7, 7), core.Black, AllCastling},
+		{"black queenside", core.NewSquare(7, 4), core.NewSquare(7, 2), core.NewSquare(7, 0), core.Black, AllCastling},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			king := core.NewPiece(core.King, tt.color)
+			rook := core.NewPiece(core.Rook, tt.color)
+			pos := setupPosition(map[core.Square]core.Piece{tt.kingSq: king, tt.rookSq: rook}, tt.color, tt.castling, core.InvalidSquare)
+			next := MakeMove(pos, core.NewCastling(tt.kingSq, tt.kingTo))
+			assertZobrist(t, next)
+		})
+	}
+}
+
+func TestZobristCastlingRightsChange(t *testing.T) {
+	a1 := core.NewSquare(0, 0)
+	a2 := core.NewSquare(1, 0)
+	wRook := core.NewPiece(core.Rook, core.White)
+
+	pos := setupPosition(map[core.Square]core.Piece{a1: wRook}, core.White, AllCastling, core.InvalidSquare)
+	next := MakeMove(pos, core.NewMove(a1, a2))
+	assertZobrist(t, next)
+}
+
+func TestZobristSideToMove(t *testing.T) {
+	e2 := core.NewSquare(1, 4)
+	wPawn := core.NewPiece(core.Pawn, core.White)
+
+	white := setupPosition(map[core.Square]core.Piece{e2: wPawn}, core.White, NoCastling, core.InvalidSquare)
+	black := setupPosition(map[core.Square]core.Piece{e2: wPawn}, core.Black, NoCastling, core.InvalidSquare)
+
+	if white.Zobrist == black.Zobrist {
+		t.Error("same board with different side to move should have different hashes")
+	}
+}
+
+func TestZobristTransposition(t *testing.T) {
+	// reach the same position via 1.e3 d6 2.d3 and 1.d3 d6 2.e3
+	e2 := core.NewSquare(1, 4)
+	e3 := core.NewSquare(2, 4)
+	d2 := core.NewSquare(1, 3)
+	d3 := core.NewSquare(2, 3)
+	d7 := core.NewSquare(6, 3)
+	d6 := core.NewSquare(5, 3)
+	wPawn := core.NewPiece(core.Pawn, core.White)
+	bPawn := core.NewPiece(core.Pawn, core.Black)
+
+	start := setupPosition(map[core.Square]core.Piece{
+		e2: wPawn, d2: wPawn, d7: bPawn,
+	}, core.White, NoCastling, core.InvalidSquare)
+
+	// path 1: e3, d6, d3
+	p1 := MakeMove(start, core.NewMove(e2, e3))
+	p1 = MakeMove(p1, core.NewMove(d7, d6))
+	p1 = MakeMove(p1, core.NewMove(d2, d3))
+
+	// path 2: d3, d6, e3
+	p2 := MakeMove(start, core.NewMove(d2, d3))
+	p2 = MakeMove(p2, core.NewMove(d7, d6))
+	p2 = MakeMove(p2, core.NewMove(e2, e3))
+
+	if p1.Zobrist != p2.Zobrist {
+		t.Errorf("same position via different move orders should have same hash: %x != %x", p1.Zobrist, p2.Zobrist)
 	}
 }

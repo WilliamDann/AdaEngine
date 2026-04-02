@@ -14,6 +14,54 @@ var (
 	enPassantKeys   [8]uint64       // one per file
 )
 
+// helper for hasing castling keys
+func castlingKey(p *Position) uint64 {
+	var hsh uint64
+
+	for i := 0; i < 4; i++ {
+		if p.Castling.Has(CastlingRights(1 << i)) {
+			hsh ^= castlingKeys[i]
+		}
+	}
+
+	return hsh
+}
+
+// helper for active color
+func activeColorKey(p *Position) uint64 {
+	if p.ActiveColor == core.Black {
+		return sideToMoveKey
+	}
+	return 0
+}
+
+// helper for en passant
+func enPassantKey(p *Position) uint64 {
+	var hsh uint64
+
+	// en peasant
+	if p.EnPassant.Valid() {
+		hsh ^= enPassantKeys[p.EnPassant.File()]
+	}
+
+	return hsh
+}
+
+// helper for board state
+func piecesKey(p *Position) uint64 {
+	var hsh uint64
+
+	for sq := range p.Board.Occupied().Squares() {
+		piece := p.Board.Check(sq)
+		if piece != core.None {
+			hsh ^= pieceSquareKeys[piece][sq]
+		}
+	}
+
+	return hsh
+}
+
+// determine keys at program start
 func init() {
 	// pieces
 	for piece := range pieceSquareKeys {
@@ -36,35 +84,14 @@ func init() {
 	}
 }
 
-
 // compute a zobrist hash for a position
 func (pos *Position) ComputeZobrist() uint64 {
 	var hsh uint64
 
-	// pieces
-	for sq := range pos.Board.Occupied().Squares() {
-		piece := pos.Board.Check(sq)
-		if piece != core.None {
-			hsh ^= pieceSquareKeys[piece][sq]
-		}
-	}
-
-	// side to move
-	if pos.ActiveColor == core.Black {
-		hsh ^= sideToMoveKey
-	}
-
-	// castling
-	for i := 0; i < 4; i++ {
-		if pos.Castling.Has(CastlingRights(1 << i)) {
-			hsh ^= castlingKeys[i]
-		}
-	}
-
-	// en peasant
-	if pos.EnPassant.Valid() {
-		hsh ^= enPassantKeys[pos.EnPassant.File()]
-	}
+	hsh ^= piecesKey(pos)
+	hsh ^= activeColorKey(pos)
+	hsh ^= castlingKey(pos)
+	hsh ^= enPassantKey(pos)
 
 	return hsh
 }
