@@ -14,6 +14,11 @@ const (
 	AllCastling CastlingRights = WhiteKingside | WhiteQueenside | BlackKingside | BlackQueenside
 )
 
+// checks if a given castling right exists
+func (c CastlingRights) Has(right CastlingRights) bool {
+	return c & right != 0
+}
+
 func (c CastlingRights) String() string {
 	if c == NoCastling {
 		return "-"

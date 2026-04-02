@@ -15,6 +15,7 @@ type Position struct {
 	EnPassant   core.Square
 	Halfmoves   int
 	Fullmoves   int
+	Zobrist     uint64
 }
 
 
