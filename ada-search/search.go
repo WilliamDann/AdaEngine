@@ -19,11 +19,34 @@ type Result struct {
 	Nodes uint64
 }
 
+  func adjustScoreForStore(score int, ply int) int16 {
+      if score > Mate-100 {
+          return int16(score + ply)
+      }
+      if score < -Mate+100 {
+          return int16(score - ply)
+      }
+      return int16(score)
+  }
+
+  func adjustScoreForProbe(score int16, ply int) int {
+      s := int(score)
+      if s > Mate-100 {
+          return s - ply
+      }
+      if s < -Mate+100 {
+          return s + ply
+      }
+      return s
+  }
+
 // Search runs iterative deepening alpha-beta to the given depth.
 // The optional onDepth callback is called after each iteration completes.
 func Search(pos *position.Position, depth int, onDepth ...func(Result)) Result {
 	var best Result
 	best.Score = -Inf
+
+	tt := NewTT(1 << 22)
 
 	moves := movegen.LegalMoves(pos)
 	n := moves.Count()
@@ -39,7 +62,7 @@ func Search(pos *position.Position, depth int, onDepth ...func(Result)) Result {
 		for i := 0; i < n; i++ {
 			child := position.MakeMove(pos, ordered[i])
 			best.Nodes++
-			score := -alphabeta(child, d-1, -beta, -alpha, &best.Nodes)
+			score := -alphabeta(tt, child, 1, d-1, -beta, -alpha, &best.Nodes)
 			scores[i] = score
 			if score > alpha {
 				alpha = score
@@ -79,7 +102,30 @@ func sortMoves(moves []core.Move, scores []int, n int) {
 	}
 }
 
-func alphabeta(pos *position.Position, depth int, alpha, beta int, nodes *uint64) int {
+func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta int, nodes *uint64) int {
+	// look up in transposition table
+	entry, found := tt.Probe(pos.Zobrist)
+	startAlpha   := alpha
+	bestMove     := core.NoMove
+	if found {
+		if entry.Depth >= int8(depth) {
+			score := adjustScoreForProbe(entry.Score, ply)
+
+			if entry.Flag == Exact {
+				return score
+			}
+			if entry.Flag == LowerBound {
+				alpha = max(alpha, score)
+			}
+			if entry.Flag == UpperBound {
+				beta = min(beta, score)
+			}
+			if alpha >= beta {
+				return score
+			}
+		}
+	}
+
 	moves := movegen.LegalMoves(pos)
 
 	// Terminal: no legal moves
@@ -97,13 +143,31 @@ func alphabeta(pos *position.Position, depth int, alpha, beta int, nodes *uint64
 	for i := 0; i < moves.Count(); i++ {
 		child := position.MakeMove(pos, moves.Get(i))
 		*nodes++
-		score := -alphabeta(child, depth-1, -beta, -alpha, nodes)
+		score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
 		if score >= beta {
 			return beta
 		}
 		if score > alpha {
-			alpha = score
+			alpha    = score
+			bestMove = moves.Get(i)
 		}
 	}
+
+	// store move in the transposition table
+	var flagType SearchFlag = Exact
+	if alpha <= startAlpha {
+		flagType = UpperBound
+	} else if alpha >= beta {
+		flagType = LowerBound
+	}
+
+	tt.Store(TTEntry{
+		Key: pos.Zobrist,
+		Move: bestMove,
+		Depth: int8(depth),
+		Score: adjustScoreForStore(alpha, ply),
+		Flag: flagType,
+	})
+
 	return alpha
 }
