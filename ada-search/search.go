@@ -19,26 +19,89 @@ type Result struct {
 	Nodes uint64
 }
 
-  func adjustScoreForStore(score int, ply int) int16 {
-      if score > Mate-100 {
-          return int16(score + ply)
-      }
-      if score < -Mate+100 {
-          return int16(score - ply)
-      }
-      return int16(score)
-  }
+func quiesce(tt *TT, pos *position.Position, ply int, alpha, beta int, nodes *uint64) int {
+	entry, found := tt.Probe(pos.Zobrist)
+	startAlpha   := alpha
+	if found {
+		score := adjustScoreForProbe(entry.Score, ply)
 
-  func adjustScoreForProbe(score int16, ply int) int {
-      s := int(score)
-      if s > Mate-100 {
-          return s - ply
-      }
-      if s < -Mate+100 {
-          return s + ply
-      }
-      return s
-  }
+		if entry.Flag == Exact {
+			return score
+		}
+		if entry.Flag == LowerBound {
+			alpha = max(alpha, score)
+		}
+		if entry.Flag == UpperBound {
+			beta = min(beta, score)
+		}
+		if alpha >= beta {
+			return score
+		}
+	}
+
+	stand := Evaluate(pos)
+	if stand >= beta {
+		return beta
+	}
+	if stand > alpha {
+		alpha = stand
+	}
+
+	captures := movegen.LegalCaptures(pos)
+	for i := 0; i < captures.Count(); i++ {
+		child := position.MakeMove(pos, captures.Get(i))
+		*nodes++
+
+		score := -quiesce(tt, child, ply+1, -beta, -alpha, nodes)
+		if score >= beta {
+			return beta
+		}
+		if score > alpha {
+			alpha = score
+		}
+	}
+
+	
+	// store move in the transposition table
+	var flagType SearchFlag = Exact
+	if alpha <= startAlpha {
+		flagType = UpperBound
+	} else if alpha >= beta {
+		flagType = LowerBound
+	}
+
+	tt.Store(TTEntry{
+		Key: pos.Zobrist,
+		Move: core.NoMove,
+		Depth: 0,
+		Score: adjustScoreForStore(alpha, ply),
+		Flag: flagType,
+	})
+
+	return alpha
+}
+
+
+func adjustScoreForStore(score int, ply int) int16 {
+	if score > Mate-100 {
+		return int16(score + ply)
+	}
+	if score < -Mate+100 {
+		return int16(score - ply)
+	}
+	return int16(score)
+}
+
+func adjustScoreForProbe(score int16, ply int) int {
+	s := int(score)
+	if s > Mate-100 {
+		return s - ply
+	}
+	if s < -Mate+100 {
+		return s + ply
+	}
+	return s
+}
 
 // Search runs iterative deepening alpha-beta to the given depth.
 // The optional onDepth callback is called after each iteration completes.
@@ -137,7 +200,7 @@ func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta i
 	}
 
 	if depth == 0 {
-		return Evaluate(pos)
+		return quiesce(tt, pos, ply, alpha, beta, nodes)
 	}
 
 	for i := 0; i < moves.Count(); i++ {
