@@ -86,7 +86,6 @@ func quiesce(tt *TT, pos *position.Position, ply int, alpha, beta int, nodes *ui
 	return alpha
 }
 
-
 func adjustScoreForStore(score int, ply int) int16 {
 	if score > Mate-100 {
 		return int16(score + ply)
@@ -208,7 +207,26 @@ func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta i
 		return quiesce(tt, pos, ply, alpha, beta, nodes)
 	}
 
+	// search best tt move
+  if found && entry.Move != core.NoMove {
+      child := position.MakeMove(pos, entry.Move)
+      *nodes++
+      score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
+      if score >= beta {
+          return beta
+      }
+      if score > alpha {
+          alpha = score
+          bestMove = entry.Move
+      }
+  }
+
 	for i := 0; i < moves.Count(); i++ {
+		// skip TT move
+		if found && moves.Get(i) == entry.Move {
+			continue
+		}
+
 		child := position.MakeMove(pos, moves.Get(i))
 		*nodes++
 		score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
