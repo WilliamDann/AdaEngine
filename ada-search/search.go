@@ -49,6 +49,11 @@ func quiesce(tt *TT, pos *position.Position, ply int, alpha, beta int, nodes *ui
 
 	captures := movegen.LegalCaptures(pos)
 	for i := 0; i < captures.Count(); i++ {
+		captured := pos.Board.Check(captures.Get(i).To()).Type()
+		if stand + pieceValue[captured] + 200 < alpha {
+			continue
+		}
+
 		child := position.MakeMove(pos, captures.Get(i))
 		*nodes++
 
