@@ -18,9 +18,25 @@ type Position struct {
 	Zobrist     uint64
 }
 
-
 func NewPosition() *Position {
 	return &Position{}
+}
+
+func MakeNullMove(pos *Position) *Position {
+	next := &Position{
+		Board:       pos.Board, // no copy needed, nothing changes
+		ActiveColor: pos.ActiveColor.Flip(),
+		Castling:    pos.Castling,
+		EnPassant:   core.InvalidSquare,
+		Halfmoves:   pos.Halfmoves,
+		Fullmoves:   pos.Fullmoves,
+		Zobrist:     pos.Zobrist ^ sideToMoveKey,
+	}
+	// clear old en passant from hash
+	if pos.EnPassant.Valid() {
+		next.Zobrist ^= enPassantKeys[pos.EnPassant.File()]
+	}
+	return next
 }
 
 func (pos *Position) String() string {

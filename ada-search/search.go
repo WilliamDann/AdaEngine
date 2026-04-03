@@ -66,7 +66,7 @@ func quiesce(tt *TT, pos *position.Position, ply int, alpha, beta int, nodes *ui
 		}
 	}
 
-	
+
 	// store move in the transposition table
 	var flagType SearchFlag = Exact
 	if alpha <= startAlpha {
@@ -105,6 +105,16 @@ func adjustScoreForProbe(score int16, ply int) int {
 		return s + ply
 	}
 	return s
+}
+
+// score for diff in attacking vs attacked peices
+func mvvlva(pos *position.Position, m core.Move) int {
+	victim := pos.Board.Check(m.To()).Type()
+	attacker := pos.Board.Check(m.From()).Type()
+	if victim == 0 {
+		return 0 // quiet move
+	}
+	return pieceValue[victim] - pieceValue[attacker]
 }
 
 // Search runs iterative deepening alpha-beta to the given depth.
@@ -203,29 +213,57 @@ func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta i
 		return 0 // Stalemate
 	}
 
+	// extend line when in check
+	if movegen.InCheck(pos) {
+		depth++
+	}
+
 	if depth == 0 {
 		return quiesce(tt, pos, ply, alpha, beta, nodes)
 	}
 
+	// null move pruning (if we can skip a move and be winning just prune)
+	if depth >= 3 && !movegen.InCheck(pos) {
+		nullChild := position.MakeNullMove(pos)
+		nullScore := -alphabeta(tt, nullChild, ply+1, depth-3, -beta, -beta+1, nodes)
+		if nullScore >= beta {
+			return beta
+		}
+	}
+
 	// search best tt move
-  if found && entry.Move != core.NoMove {
-      child := position.MakeMove(pos, entry.Move)
-      *nodes++
-      score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
-      if score >= beta {
-          return beta
-      }
-      if score > alpha {
-          alpha = score
-          bestMove = entry.Move
-      }
-  }
+	if found && entry.Move != core.NoMove {
+		child := position.MakeMove(pos, entry.Move)
+		*nodes++
+		score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
+		if score >= beta {
+			return beta
+		}
+		if score > alpha {
+			alpha = score
+			bestMove = entry.Move
+		}
+	}
 
 	for i := 0; i < moves.Count(); i++ {
 		// skip TT move
 		if found && moves.Get(i) == entry.Move {
 			continue
 		}
+
+		bestIdx   := i
+		bestScore := mvvlva(pos, moves.Get(i))
+		for j := i + 1; j < moves.Count(); j++ {
+			if found && moves.Get(j) == entry.Move {
+				continue
+			}
+			s := mvvlva(pos, moves.Get(j))
+			if s > bestScore {
+				bestScore = s
+				bestIdx   = j
+			}
+		}
+		moves.Swap(i, bestIdx)
 
 		child := position.MakeMove(pos, moves.Get(i))
 		*nodes++
