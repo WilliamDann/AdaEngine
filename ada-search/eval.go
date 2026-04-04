@@ -2,6 +2,7 @@ package search
 
 import (
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
+	"github.com/WilliamDann/AdaEngine/ada-chess/movegen"
 	"github.com/WilliamDann/AdaEngine/ada-chess/position"
 )
 
@@ -191,6 +192,75 @@ func Evaluate(pos *position.Position) int {
 	} else {
 		score += bZoneCount*bZoneCount*kingZoneWeight - wZoneCount*wZoneCount*kingZoneWeight
 		score += bRegionCount*kingRegionWeight - wRegionCount*kingRegionWeight
+	}
+
+	// Space control: pawn attacks are strong permanent control,
+	// piece attacks only count where enemy pawns don't cover.
+	// Enemy outposts (squares they attack with pawns that we don't) are penalized.
+	occupied := pos.Board.Occupied()
+
+	var wPawnAtk, bPawnAtk core.Bitboard
+	for sq := range pos.Board.Pieces(core.NewPiece(core.Pawn, core.White)).Squares() {
+		wPawnAtk = wPawnAtk.Union(movegen.PawnAttacks(sq, core.White))
+	}
+	for sq := range pos.Board.Pieces(core.NewPiece(core.Pawn, core.Black)).Squares() {
+		bPawnAtk = bPawnAtk.Union(movegen.PawnAttacks(sq, core.Black))
+	}
+
+	var wPieceAtk, bPieceAtk core.Bitboard
+	for _, pt := range []core.PieceType{core.Knight, core.Bishop, core.Rook, core.Queen, core.King} {
+		for sq := range pos.Board.Pieces(core.NewPiece(pt, core.White)).Squares() {
+			switch pt {
+			case core.Knight:
+				wPieceAtk = wPieceAtk.Union(movegen.KnightMoves(sq))
+			case core.Bishop:
+				wPieceAtk = wPieceAtk.Union(movegen.BishopMoves(sq, occupied))
+			case core.Rook:
+				wPieceAtk = wPieceAtk.Union(movegen.RookMoves(sq, occupied))
+			case core.Queen:
+				wPieceAtk = wPieceAtk.Union(movegen.BishopMoves(sq, occupied).Union(movegen.RookMoves(sq, occupied)))
+			case core.King:
+				wPieceAtk = wPieceAtk.Union(movegen.KingMoves(sq))
+			}
+		}
+		for sq := range pos.Board.Pieces(core.NewPiece(pt, core.Black)).Squares() {
+			switch pt {
+			case core.Knight:
+				bPieceAtk = bPieceAtk.Union(movegen.KnightMoves(sq))
+			case core.Bishop:
+				bPieceAtk = bPieceAtk.Union(movegen.BishopMoves(sq, occupied))
+			case core.Rook:
+				bPieceAtk = bPieceAtk.Union(movegen.RookMoves(sq, occupied))
+			case core.Queen:
+				bPieceAtk = bPieceAtk.Union(movegen.BishopMoves(sq, occupied).Union(movegen.RookMoves(sq, occupied)))
+			case core.King:
+				bPieceAtk = bPieceAtk.Union(movegen.KingMoves(sq))
+			}
+		}
+	}
+
+	// Safe piece control: squares attacked by pieces but not defended by enemy pawns
+	wSafe := wPieceAtk.Subtract(bPawnAtk).Count()
+	bSafe := bPieceAtk.Subtract(wPawnAtk).Count()
+
+	// Enemy outposts: squares enemy pawns attack but ours don't
+	wOutposts := bPawnAtk.Subtract(wPawnAtk).Count() // squares black controls with pawns, we can't contest
+	bOutposts := wPawnAtk.Subtract(bPawnAtk).Count() // squares white controls with pawns, black can't contest
+
+	const (
+		pawnControlWeight = 3
+		safeControlWeight = 1
+		outpostPenalty    = 2
+	)
+
+	if pos.ActiveColor == core.White {
+		score += wPawnAtk.Count()*pawnControlWeight - bPawnAtk.Count()*pawnControlWeight
+		score += wSafe*safeControlWeight - bSafe*safeControlWeight
+		score -= wOutposts*outpostPenalty - bOutposts*outpostPenalty
+	} else {
+		score += bPawnAtk.Count()*pawnControlWeight - wPawnAtk.Count()*pawnControlWeight
+		score += bSafe*safeControlWeight - wSafe*safeControlWeight
+		score -= bOutposts*outpostPenalty - wOutposts*outpostPenalty
 	}
 
 	return score
