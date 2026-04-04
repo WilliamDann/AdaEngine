@@ -46,10 +46,6 @@ var centerBonus = [7]int{
 // near the king gets almost nothing but a group gets a large bonus.
 const kingZoneWeight = 3
 
-// Bonus for a rook/queen on the same rank or file as the enemy king,
-// or a bishop/queen on the same diagonal. Regardless of blockers —
-// the piece is aimed at the king.
-const lineAlignWeight = 10
 
 // Board region masks: queenside (files a-c), center (files d-e), kingside (files f-h).
 var regionMask [3]core.Bitboard
@@ -68,12 +64,6 @@ const kingRegionWeight = 2
 var (
 	centerDist [64]int           // Chebyshev distance from center (0-3)
 	kingZone   [64]core.Bitboard // 3x3 area around each square
-
-	rankMask  [8]core.Bitboard    // all squares on rank r
-	fileMask  [8]core.Bitboard    // all squares on file f
-	diagMask  [15]core.Bitboard   // all squares on diagonal (r-f+7)
-	adiagMask [15]core.Bitboard   // all squares on anti-diagonal (r+f)
-	between   [64][64]core.Bitboard // squares strictly between two squares on the same line
 )
 
 func init() {
@@ -107,51 +97,6 @@ func init() {
 			}
 		}
 		kingZone[sq] = mask
-
-		// Line masks
-		bb := core.Bitboard(0).Set(core.Square(sq))
-		rankMask[r] |= bb
-		fileMask[f] |= bb
-		diagMask[r-f+7] |= bb
-		adiagMask[r+f] |= bb
-	}
-}
-
-func sign(x int) int {
-	if x > 0 {
-		return 1
-	}
-	if x < 0 {
-		return -1
-	}
-	return 0
-}
-
-func init() {
-	// Precompute between masks: squares strictly between a and b
-	// on the same rank, file, or diagonal.
-	for a := 0; a < 64; a++ {
-		ar, af := a/8, a%8
-		for b := 0; b < 64; b++ {
-			br, bf := b/8, b%8
-			dr, df := br-ar, bf-af
-			// Must be on same rank, file, or diagonal
-			if dr == 0 && df == 0 {
-				continue
-			}
-			if dr != 0 && df != 0 && abs(dr) != abs(df) {
-				continue
-			}
-			sr, sf := sign(dr), sign(df)
-			var mask core.Bitboard
-			r, f := ar+sr, af+sf
-			for r != br || f != bf {
-				mask = mask.Set(core.Square(r*8 + f))
-				r += sr
-				f += sf
-			}
-			between[a][b] = mask
-		}
 	}
 }
 
@@ -179,38 +124,6 @@ func findKingSq(pos *position.Position, color core.Color) int {
 		return int(sq)
 	}
 	return 0
-}
-
-// lineAttacks counts how many rooks/queens share a rank or file with the
-// king, and how many bishops/queens share a diagonal, for one color
-// attacking the given king square. Only counted if there is at most one
-// piece between the attacker and the king.
-func lineAttacks(pos *position.Position, color core.Color, kingSq int) int {
-	kr, kf := kingSq/8, kingSq%8
-	occupied := pos.Board.Occupied()
-	count := 0
-
-	// Rooks and queens on same rank or file
-	rooks := pos.Board.Pieces(core.NewPiece(core.Rook, color)).
-		Union(pos.Board.Pieces(core.NewPiece(core.Queen, color)))
-	onLine := rankMask[kr].Union(fileMask[kf]).Intersection(rooks)
-	for sq := range onLine.Squares() {
-		if between[sq][kingSq].Intersection(occupied).Count() <= 1 {
-			count++
-		}
-	}
-
-	// Bishops and queens on same diagonal
-	bishops := pos.Board.Pieces(core.NewPiece(core.Bishop, color)).
-		Union(pos.Board.Pieces(core.NewPiece(core.Queen, color)))
-	onDiag := diagMask[kr-kf+7].Union(adiagMask[kr+kf]).Intersection(bishops)
-	for sq := range onDiag.Squares() {
-		if between[sq][kingSq].Intersection(occupied).Count() <= 1 {
-			count++
-		}
-	}
-
-	return count
 }
 
 // Evaluate returns a score in centipawns from the active color's perspective.
@@ -272,18 +185,12 @@ func Evaluate(pos *position.Position) int {
 	wRegionCount := regionMask[bkRegion].Intersection(wNonKing).Count()
 	bRegionCount := regionMask[wkRegion].Intersection(bNonKing).Count()
 
-	// Line alignment: rooks/queens on same rank/file, bishops/queens on same diagonal.
-	wLineCount := lineAttacks(pos, core.White, bkSq)
-	bLineCount := lineAttacks(pos, core.Black, wkSq)
-
 	if pos.ActiveColor == core.White {
 		score += wZoneCount*wZoneCount*kingZoneWeight - bZoneCount*bZoneCount*kingZoneWeight
 		score += wRegionCount*kingRegionWeight - bRegionCount*kingRegionWeight
-		score += wLineCount*lineAlignWeight - bLineCount*lineAlignWeight
 	} else {
 		score += bZoneCount*bZoneCount*kingZoneWeight - wZoneCount*wZoneCount*kingZoneWeight
 		score += bRegionCount*kingRegionWeight - wRegionCount*kingRegionWeight
-		score += bLineCount*lineAlignWeight - wLineCount*lineAlignWeight
 	}
 
 	return score

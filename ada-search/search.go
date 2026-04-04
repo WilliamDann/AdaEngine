@@ -1,6 +1,7 @@
 package search
 
 import (
+	"math"
 	"sync"
 	"runtime"
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
@@ -8,10 +9,46 @@ import (
 	"github.com/WilliamDann/AdaEngine/ada-chess/position"
 )
 
+const maxDepth = 64
+const maxMoves = 256
+
+// Precomputed LMR reduction table: lmrTable[depth][moveIndex]
+var lmrTable [maxDepth][maxMoves]int
+
+func init() {
+	for d := 1; d < maxDepth; d++ {
+		for m := 1; m < maxMoves; m++ {
+			lmrTable[d][m] = int(0.5 + math.Log(float64(d))*math.Log(float64(m))/2.0)
+		}
+	}
+}
+
 const (
-	Mate = 30_000
-	Inf  = Mate + 1
+	Mate   = 30_000
+	Inf    = Mate + 1
+	maxPly = 128
 )
+
+// killers stores two killer moves per ply — quiet moves that caused
+// beta cutoffs in sibling nodes at the same depth.
+type killers [maxPly][2]core.Move
+
+func (k *killers) store(ply int, m core.Move) {
+	if ply >= maxPly {
+		return
+	}
+	if k[ply][0] != m {
+		k[ply][1] = k[ply][0]
+		k[ply][0] = m
+	}
+}
+
+func (k *killers) isKiller(ply int, m core.Move) bool {
+	if ply >= maxPly {
+		return false
+	}
+	return k[ply][0] == m || k[ply][1] == m
+}
 
 // Result holds the outcome of a search.
 type Result struct {
@@ -159,6 +196,7 @@ func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth
 	var best Result
 	best.Score = -Inf
 	var nodes uint64
+	var k killers
 
 	moves := movegen.LegalMoves(pos)
 	n := moves.Count()
@@ -168,25 +206,42 @@ func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth
 		ordered[i] = moves.Get(i)
 	}
 
+	const aspirationWindow = 50
+
 	for d := 1; d <= depth; d++ {
 		alpha := -Inf
 		beta := Inf
+
+		// Aspiration window: use previous score to narrow the search
+		if d >= 4 && best.Score > -Mate+100 && best.Score < Mate-100 {
+			alpha = best.Score - aspirationWindow
+			beta = best.Score + aspirationWindow
+		}
+
+	research:
 		for i := 0; i < n; i++ {
 			child := position.MakeMove(pos, ordered[i])
 			nodes++
-			score := -alphabeta(tt, child, 1, d-1, -beta, -alpha, &nodes)
+			score := -alphabeta(tt, &k, child, 1, d-1, -beta, -alpha, &nodes)
 			scores[i] = score
 			if score > alpha {
 				alpha = score
 			}
 		}
-		// Find best move for this iteration
+
+		// Check if aspiration window failed — re-search with full window
 		bestIdx := 0
 		for i := 1; i < n; i++ {
 			if scores[i] > scores[bestIdx] {
 				bestIdx = i
 			}
 		}
+		if d >= 4 && (scores[bestIdx] <= best.Score-aspirationWindow || scores[bestIdx] >= best.Score+aspirationWindow) {
+			alpha = -Inf
+			beta = Inf
+			goto research
+		}
+
 		best.Move = ordered[bestIdx]
 		best.Score = scores[bestIdx]
 		best.Depth = d
@@ -216,7 +271,7 @@ func sortMoves(moves []core.Move, scores []int, n int) {
 	}
 }
 
-func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta int, nodes *uint64) int {
+func alphabeta(tt *TT, k *killers, pos *position.Position, ply int, depth int, alpha, beta int, nodes *uint64) int {
 	// look up in transposition table
 	entry, found := tt.Probe(pos.Zobrist)
 	startAlpha   := alpha
@@ -250,21 +305,26 @@ func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta i
 		return 0 // Stalemate
 	}
 
-	// extend line when in check
-	if movegen.InCheck(pos) {
-		depth++
-	}
-
 	if depth == 0 {
 		return quiesce(tt, pos, ply, alpha, beta, nodes)
 	}
 
+	inCheck := movegen.InCheck(pos)
+
 	// null move pruning (if we can skip a move and be winning just prune)
-	if depth >= 3 && !movegen.InCheck(pos) {
+	if depth >= 3 && !inCheck {
 		nullChild := position.MakeNullMove(pos)
-		nullScore := -alphabeta(tt, nullChild, ply+1, depth-3, -beta, -beta+1, nodes)
+		nullScore := -alphabeta(tt, k, nullChild, ply+1, depth-3, -beta, -beta+1, nodes)
 		if nullScore >= beta {
 			return beta
+		}
+	}
+
+	// futility pruning: at shallow depths, skip quiet moves that can't beat alpha
+	futile := false
+	if depth <= 2 && !inCheck {
+		if Evaluate(pos)+depth*150 <= alpha {
+			futile = true
 		}
 	}
 
@@ -272,7 +332,7 @@ func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta i
 	if found && entry.Move != core.NoMove {
 		child := position.MakeMove(pos, entry.Move)
 		*nodes++
-		score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
+		score := -alphabeta(tt, k, child, ply+1, depth-1, -beta, -alpha, nodes)
 		if score >= beta {
 			return beta
 		}
@@ -290,22 +350,55 @@ func alphabeta(tt *TT, pos *position.Position, ply int, depth int, alpha, beta i
 
 		bestIdx   := i
 		bestScore := mvvlva(pos, moves.Get(i))
+		if k.isKiller(ply, moves.Get(i)) {
+			bestScore += 50
+		}
 		for j := i + 1; j < moves.Count(); j++ {
 			if found && moves.Get(j) == entry.Move {
 				continue
 			}
 			s := mvvlva(pos, moves.Get(j))
+			if k.isKiller(ply, moves.Get(j)) {
+				s += 50
+			}
 			if s > bestScore {
 				bestScore = s
 				bestIdx   = j
 			}
 		}
 		moves.Swap(i, bestIdx)
-
-		child := position.MakeMove(pos, moves.Get(i))
+		mv := moves.Get(i)
+		child := position.MakeMove(pos, mv)
 		*nodes++
-		score := -alphabeta(tt, child, ply+1, depth-1, -beta, -alpha, nodes)
+
+		isCapture := pos.Board.Check(mv.To()).Type() != 0
+		givesCheck := movegen.InCheck(child)
+
+		if futile && !isCapture && !givesCheck {
+			continue
+		}
+
+		// LMR: reduced search for late quiet moves
+		var score int
+		doFull := true
+		if i >= 3 && depth >= 3 && !isCapture && !givesCheck {
+			R := lmrTable[min(depth, maxDepth-1)][min(i, maxMoves-1)]
+			if R < 1 {
+				R = 1
+			}
+			if R >= depth {
+				R = depth - 1
+			}
+			score = -alphabeta(tt, k, child, ply+1, depth-1-R, -(alpha+1), -alpha, nodes)
+			doFull = score > alpha
+		}
+		if doFull {
+			score = -alphabeta(tt, k, child, ply+1, depth-1, -beta, -alpha, nodes)
+		}
 		if score >= beta {
+			if !isCapture {
+				k.store(ply, mv)
+			}
 			return beta
 		}
 		if score > alpha {

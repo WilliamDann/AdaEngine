@@ -157,7 +157,7 @@ func benchmarkSearch(b *testing.B, pos *position.Position, depth int, tt *TT) {
 		for i := 0; i < moves.Count(); i++ {
 			child := position.MakeMove(pos, moves.Get(i))
 			nodes++
-			alphabeta(tt, child, 1, depth-1, -Inf, Inf, &nodes)
+			alphabeta(tt, &killers{}, child, 1, depth-1, -Inf, Inf, &nodes)
 		}
 	}
 }
@@ -214,7 +214,7 @@ func TestTTAndNoTTSameResult(t *testing.T) {
 	for i := 0; i < moves.Count(); i++ {
 		child := position.MakeMove(pos, moves.Get(i))
 		nodesWithTT++
-		score := -alphabeta(tt, child, 1, depth-1, -Inf, Inf, &nodesWithTT)
+		score := -alphabeta(tt, &killers{}, child, 1, depth-1, -Inf, Inf, &nodesWithTT)
 		if score > bestScoreWithTT {
 			bestScoreWithTT = score
 			bestWithTT = moves.Get(i)
@@ -228,7 +228,7 @@ func TestTTAndNoTTSameResult(t *testing.T) {
 	for i := 0; i < moves.Count(); i++ {
 		child := position.MakeMove(pos, moves.Get(i))
 		nodesWithoutTT++
-		score := -alphabeta(nil, child, 1, depth-1, -Inf, Inf, &nodesWithoutTT)
+		score := -alphabeta(nil, &killers{}, child, 1, depth-1, -Inf, Inf, &nodesWithoutTT)
 		if score > bestScoreWithoutTT {
 			bestScoreWithoutTT = score
 			bestWithoutTT = moves.Get(i)
