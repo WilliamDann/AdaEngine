@@ -9,7 +9,7 @@ import (
 
 func TestSearchStartingPosition(t *testing.T) {
 	pos, _ := fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-	res := Search(pos, 1)
+	res := Search(pos, 1, 1)
 	if res.Move == core.NoMove {
 		t.Fatal("expected a move from the starting position")
 	}
@@ -18,7 +18,7 @@ func TestSearchStartingPosition(t *testing.T) {
 
 func TestSearchDepth3(t *testing.T) {
 	pos, _ := fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-	res := Search(pos, 3)
+	res := Search(pos, 3, 1)
 	if res.Move == core.NoMove {
 		t.Fatal("expected a move")
 	}
@@ -31,7 +31,7 @@ func TestSearchMateIn1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res := Search(pos, 1)
+	res := Search(pos, 1, 1)
 	// Qxf7# — the queen on h5 captures f7
 	if res.Move.To() != core.NewSquare(6, 5) {
 		t.Errorf("expected mate move Qxf7#, got %s", res.Move)

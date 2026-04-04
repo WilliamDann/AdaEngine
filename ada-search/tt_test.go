@@ -114,8 +114,8 @@ func TestSearchResultUnchangedWithTT(t *testing.T) {
 	pos, _ := fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 	depth := 4
 
-	r1 := Search(pos, depth)
-	r2 := Search(pos, depth)
+	r1 := Search(pos, depth, 1)
+	r2 := Search(pos, depth, 1)
 
 	if r1.Move != r2.Move {
 		t.Errorf("search results differ: move %s vs %s", r1.Move, r2.Move)
@@ -134,13 +134,13 @@ func TestTTReducesNodeCount(t *testing.T) {
 	depth := 5
 
 	// First search populates the TT from scratch
-	r1 := Search(pos, depth)
+	r1 := Search(pos, depth, 1)
 
 	// Second search reuses the same code path (new TT, but iterative deepening
 	// itself benefits from TT within the search). Compare against a baseline
 	// without TT by using depth 1 as a sanity check — the real test is that
 	// search completes and produces a valid result with reasonable node counts.
-	r2 := Search(pos, depth)
+	r2 := Search(pos, depth, 1)
 
 	if r1.Move == core.NoMove || r2.Move == core.NoMove {
 		t.Fatal("expected valid moves from both searches")
@@ -171,6 +171,34 @@ func BenchmarkSearchWithTT(b *testing.B) {
 func BenchmarkSearchWithoutTT(b *testing.B) {
 	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
 	benchmarkSearch(b, pos, 5, nil)
+}
+
+func BenchmarkSearch1Thread(b *testing.B) {
+	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
+	for b.Loop() {
+		Search(pos, 5, 1)
+	}
+}
+
+func BenchmarkSearch2Threads(b *testing.B) {
+	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
+	for b.Loop() {
+		Search(pos, 5, 2)
+	}
+}
+
+func BenchmarkSearch4Threads(b *testing.B) {
+	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
+	for b.Loop() {
+		Search(pos, 5, 4)
+	}
+}
+
+func BenchmarkSearchAllThreads(b *testing.B) {
+	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
+	for b.Loop() {
+		Search(pos, 5, 0)
+	}
 }
 
 func TestTTAndNoTTSameResult(t *testing.T) {

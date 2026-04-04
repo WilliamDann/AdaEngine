@@ -1,6 +1,8 @@
 package search
 
 import (
+	"sync"
+	"runtime"
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 	"github.com/WilliamDann/AdaEngine/ada-chess/movegen"
 	"github.com/WilliamDann/AdaEngine/ada-chess/position"
@@ -119,11 +121,44 @@ func mvvlva(pos *position.Position, m core.Move) int {
 
 // Search runs iterative deepening alpha-beta to the given depth.
 // The optional onDepth callback is called after each iteration completes.
-func Search(pos *position.Position, depth int, onDepth ...func(Result)) Result {
+func Search(pos *position.Position, depth int, threads int, onDepth ...func(Result)) Result {
+	tt := NewTT(1 << 22)
+
+	numThreads := threads
+	if numThreads <= 0 {
+		numThreads = runtime.NumCPU()
+	}
+	
+	results    := make([]Result, numThreads)
+	var wg sync.WaitGroup
+
+	for t := 0; t < numThreads; t++ {
+		wg.Add(1)
+		var cb func(Result)
+		if t == 0 && len(onDepth) > 0 {
+			cb = onDepth[0]
+		}
+		go func(thread int, callback func(Result)) {
+			defer wg.Done()
+			results[thread] = searchWorker(tt, pos, depth, thread, callback)
+		}(t, cb)
+	}
+	wg.Wait()
+
+	best := results[0]
+	for _, r := range results[1:] {
+		if r.Depth > best.Depth || (r.Depth == best.Depth && r.Score > best.Score) {
+			best = r
+		}
+	}
+
+	return best
+}
+
+func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth func(Result)) Result {
 	var best Result
 	best.Score = -Inf
-
-	tt := NewTT(1 << 22)
+	var nodes uint64
 
 	moves := movegen.LegalMoves(pos)
 	n := moves.Count()
@@ -138,8 +173,8 @@ func Search(pos *position.Position, depth int, onDepth ...func(Result)) Result {
 		beta := Inf
 		for i := 0; i < n; i++ {
 			child := position.MakeMove(pos, ordered[i])
-			best.Nodes++
-			score := -alphabeta(tt, child, 1, d-1, -beta, -alpha, &best.Nodes)
+			nodes++
+			score := -alphabeta(tt, child, 1, d-1, -beta, -alpha, &nodes)
 			scores[i] = score
 			if score > alpha {
 				alpha = score
@@ -156,13 +191,15 @@ func Search(pos *position.Position, depth int, onDepth ...func(Result)) Result {
 		best.Score = scores[bestIdx]
 		best.Depth = d
 
-		if len(onDepth) > 0 && onDepth[0] != nil {
-			onDepth[0](best)
+		if onDepth != nil {
+			onDepth(best)
 		}
 
 		// Sort moves descending by score for next iteration
 		sortMoves(ordered, scores, n)
 	}
+
+	best.Nodes = nodes
 	return best
 }
 

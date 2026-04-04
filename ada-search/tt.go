@@ -38,12 +38,17 @@ func NewTT(size int) *TT {
 	}
 }
 
+func packData(e TTEntry) uint64 {
+	return uint64(e.Move) | uint64(e.Depth)<<16 | uint64(e.Score) << 24 | uint64(e.Flag)<<40
+}
+
 // check the transposition table
 func (tt *TT) Probe(key uint64) (TTEntry, bool) {
 	if tt == nil {
 		return TTEntry{}, false
 	}
 	entry := tt.entries[key&tt.mask]
+	entry.Key ^= packData(entry)
 	if entry.Key == key {
 		return entry, true
 	}
@@ -55,5 +60,8 @@ func (tt *TT) Store(entry TTEntry) {
 	if tt == nil {
 		return
 	}
-	tt.entries[entry.Key&tt.mask] = entry
+	idx        := entry.Key & tt.mask
+	packed     := entry
+	packed.Key ^= packData(entry)
+	tt.entries[idx] = packed
 }

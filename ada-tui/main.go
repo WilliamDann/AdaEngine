@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -26,10 +27,11 @@ const (
 )
 
 type app struct {
-	pos   *position.Position
-	depth int
-	mode  int
-	game  *pgn.Game
+	pos     *position.Position
+	depth   int
+	threads int
+	mode    int
+	game    *pgn.Game
 
 	tv    *tview.Application
 	board *KittyImage
@@ -40,7 +42,8 @@ type app struct {
 
 func newApp() *app {
 	return &app{
-		depth: defaultDepth,
+		depth:   defaultDepth,
+		threads: 0,
 	}
 }
 
@@ -93,7 +96,7 @@ func (a *app) engineMove() {
 	a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
 	go func() {
 		start := time.Now()
-		res := search.Search(pos, d, func(r search.Result) {
+		res := search.Search(pos, d, a.threads, func(r search.Result) {
 			elapsed := time.Since(start)
 			a.tv.QueueUpdateDraw(func() {
 				a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -147,6 +150,7 @@ func (a *app) handleInput(text string) {
 		a.appendLog("  [yellow]stop[-]         Stop auto-play")
 		a.appendLog("  [yellow]moves[-]        List legal moves")
 		a.appendLog("  [yellow]depth <n>[-]    Set search depth")
+		a.appendLog("  [yellow]threads <n>[-]  Set search threads")
 		a.appendLog("  [yellow]fen <str>[-]    Load position")
 		a.appendLog("  [yellow]new[-]          New game")
 		a.appendLog("  [yellow]pgn[-]          Show PGN of current game")
@@ -169,13 +173,25 @@ func (a *app) handleInput(text string) {
 			a.updateInfo()
 		}
 
+	case "threads", "t":
+		if len(args) < 2 {
+			t := a.threads
+			if t <= 0 {
+				t = runtime.NumCPU()
+			}
+			a.appendLog(fmt.Sprintf("Threads: [aqua]%d[-]", t))
+		} else if t, err := strconv.Atoi(args[1]); err == nil && t > 0 {
+			a.threads = t
+			a.appendLog(fmt.Sprintf("Threads set to [aqua]%d[-]", t))
+		}
+
 	case "search", "s":
 		d := a.parseDepthArg(args)
 		a.appendLog(fmt.Sprintf("[yellow]Searching depth 1..%d...[-]", d))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d, func(r search.Result) {
+			res := search.Search(pos, d, a.threads, func(r search.Result) {
 				elapsed := time.Since(start)
 				a.tv.QueueUpdateDraw(func() {
 					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -203,7 +219,7 @@ func (a *app) handleInput(text string) {
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d, func(r search.Result) {
+			res := search.Search(pos, d, a.threads, func(r search.Result) {
 				elapsed := time.Since(start)
 				a.tv.QueueUpdateDraw(func() {
 					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
