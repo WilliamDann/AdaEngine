@@ -1,6 +1,7 @@
 package search
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
@@ -114,8 +115,8 @@ func TestSearchResultUnchangedWithTT(t *testing.T) {
 	pos, _ := fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 	depth := 4
 
-	r1 := Search(pos, depth, 1)
-	r2 := Search(pos, depth, 1)
+	r1 := Search(pos, depth, 1, 0)
+	r2 := Search(pos, depth, 1, 0)
 
 	if r1.Move != r2.Move {
 		t.Errorf("search results differ: move %s vs %s", r1.Move, r2.Move)
@@ -134,13 +135,13 @@ func TestTTReducesNodeCount(t *testing.T) {
 	depth := 5
 
 	// First search populates the TT from scratch
-	r1 := Search(pos, depth, 1)
+	r1 := Search(pos, depth, 1, 0)
 
 	// Second search reuses the same code path (new TT, but iterative deepening
 	// itself benefits from TT within the search). Compare against a baseline
 	// without TT by using depth 1 as a sanity check — the real test is that
 	// search completes and produces a valid result with reasonable node counts.
-	r2 := Search(pos, depth, 1)
+	r2 := Search(pos, depth, 1, 0)
 
 	if r1.Move == core.NoMove || r2.Move == core.NoMove {
 		t.Fatal("expected valid moves from both searches")
@@ -157,7 +158,7 @@ func benchmarkSearch(b *testing.B, pos *position.Position, depth int, tt *TT) {
 		for i := 0; i < moves.Count(); i++ {
 			child := position.MakeMove(pos, moves.Get(i))
 			nodes++
-			alphabeta(tt, &killers{}, child, 1, depth-1, -Inf, Inf, &nodes)
+			alphabeta(tt, &killers{}, &atomic.Bool{}, child, 1, depth-1, -Inf, Inf, &nodes)
 		}
 	}
 }
@@ -176,28 +177,28 @@ func BenchmarkSearchWithoutTT(b *testing.B) {
 func BenchmarkSearch1Thread(b *testing.B) {
 	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
 	for b.Loop() {
-		Search(pos, 5, 1)
+		Search(pos, 5, 1, 0)
 	}
 }
 
 func BenchmarkSearch2Threads(b *testing.B) {
 	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
 	for b.Loop() {
-		Search(pos, 5, 2)
+		Search(pos, 5, 2, 0)
 	}
 }
 
 func BenchmarkSearch4Threads(b *testing.B) {
 	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
 	for b.Loop() {
-		Search(pos, 5, 4)
+		Search(pos, 5, 4, 0)
 	}
 }
 
 func BenchmarkSearchAllThreads(b *testing.B) {
 	pos, _ := fen.Parse("r1bqkbnr/pppppppp/2n5/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 2")
 	for b.Loop() {
-		Search(pos, 5, 0)
+		Search(pos, 5, 0, 0)
 	}
 }
 
@@ -214,7 +215,7 @@ func TestTTAndNoTTSameResult(t *testing.T) {
 	for i := 0; i < moves.Count(); i++ {
 		child := position.MakeMove(pos, moves.Get(i))
 		nodesWithTT++
-		score := -alphabeta(tt, &killers{}, child, 1, depth-1, -Inf, Inf, &nodesWithTT)
+		score := -alphabeta(tt, &killers{}, &atomic.Bool{}, child, 1, depth-1, -Inf, Inf, &nodesWithTT)
 		if score > bestScoreWithTT {
 			bestScoreWithTT = score
 			bestWithTT = moves.Get(i)
@@ -228,7 +229,7 @@ func TestTTAndNoTTSameResult(t *testing.T) {
 	for i := 0; i < moves.Count(); i++ {
 		child := position.MakeMove(pos, moves.Get(i))
 		nodesWithoutTT++
-		score := -alphabeta(nil, &killers{}, child, 1, depth-1, -Inf, Inf, &nodesWithoutTT)
+		score := -alphabeta(nil, &killers{}, &atomic.Bool{}, child, 1, depth-1, -Inf, Inf, &nodesWithoutTT)
 		if score > bestScoreWithoutTT {
 			bestScoreWithoutTT = score
 			bestWithoutTT = moves.Get(i)

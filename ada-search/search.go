@@ -3,7 +3,9 @@ package search
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 	"runtime"
+	"time"
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 	"github.com/WilliamDann/AdaEngine/ada-chess/movegen"
 	"github.com/WilliamDann/AdaEngine/ada-chess/position"
@@ -157,15 +159,23 @@ func mvvlva(pos *position.Position, m core.Move) int {
 }
 
 // Search runs iterative deepening alpha-beta to the given depth.
+// If timeLimit > 0 the search is aborted when time expires; depth is
+// used as a hard upper bound (use maxPly for "unlimited").
 // The optional onDepth callback is called after each iteration completes.
-func Search(pos *position.Position, depth int, threads int, onDepth ...func(Result)) Result {
+func Search(pos *position.Position, depth int, threads int, timeLimit time.Duration, onDepth ...func(Result)) Result {
 	tt := NewTT(1 << 22)
+	stop := &atomic.Bool{}
+
+	if timeLimit > 0 {
+		timer := time.AfterFunc(timeLimit, func() { stop.Store(true) })
+		defer timer.Stop()
+	}
 
 	numThreads := threads
 	if numThreads <= 0 {
 		numThreads = runtime.NumCPU()
 	}
-	
+
 	results    := make([]Result, numThreads)
 	var wg sync.WaitGroup
 
@@ -177,7 +187,7 @@ func Search(pos *position.Position, depth int, threads int, onDepth ...func(Resu
 		}
 		go func(thread int, callback func(Result)) {
 			defer wg.Done()
-			results[thread] = searchWorker(tt, pos, depth, thread, callback)
+			results[thread] = searchWorker(tt, stop, pos, depth, thread, callback)
 		}(t, cb)
 	}
 	wg.Wait()
@@ -192,7 +202,7 @@ func Search(pos *position.Position, depth int, threads int, onDepth ...func(Resu
 	return best
 }
 
-func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth func(Result)) Result {
+func searchWorker(tt *TT, stop *atomic.Bool, pos *position.Position, depth int, thread int, onDepth func(Result)) Result {
 	var best Result
 	best.Score = -Inf
 	var nodes uint64
@@ -209,6 +219,9 @@ func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth
 	const aspirationWindow = 50
 
 	for d := 1; d <= depth; d++ {
+		if stop.Load() {
+			break
+		}
 		alpha := -Inf
 		beta := Inf
 
@@ -222,11 +235,16 @@ func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth
 		for i := 0; i < n; i++ {
 			child := position.MakeMove(pos, ordered[i])
 			nodes++
-			score := -alphabeta(tt, &k, child, 1, d-1, -beta, -alpha, &nodes)
+			score := -alphabeta(tt, &k, stop, child, 1, d-1, -beta, -alpha, &nodes)
 			scores[i] = score
 			if score > alpha {
 				alpha = score
 			}
+		}
+
+		// Discard partial depth if stopped
+		if stop.Load() {
+			break
 		}
 
 		// Check if aspiration window failed — re-search with full window
@@ -245,6 +263,7 @@ func searchWorker(tt *TT, pos *position.Position, depth int, thread int, onDepth
 		best.Move = ordered[bestIdx]
 		best.Score = scores[bestIdx]
 		best.Depth = d
+		best.Nodes = nodes
 
 		if onDepth != nil {
 			onDepth(best)
@@ -271,7 +290,11 @@ func sortMoves(moves []core.Move, scores []int, n int) {
 	}
 }
 
-func alphabeta(tt *TT, k *killers, pos *position.Position, ply int, depth int, alpha, beta int, nodes *uint64) int {
+func alphabeta(tt *TT, k *killers, stop *atomic.Bool, pos *position.Position, ply int, depth int, alpha, beta int, nodes *uint64) int {
+	if stop.Load() {
+		return 0
+	}
+
 	// look up in transposition table
 	entry, found := tt.Probe(pos.Zobrist)
 	startAlpha   := alpha
@@ -314,7 +337,7 @@ func alphabeta(tt *TT, k *killers, pos *position.Position, ply int, depth int, a
 	// null move pruning (if we can skip a move and be winning just prune)
 	if depth >= 3 && !inCheck {
 		nullChild := position.MakeNullMove(pos)
-		nullScore := -alphabeta(tt, k, nullChild, ply+1, depth-3, -beta, -beta+1, nodes)
+		nullScore := -alphabeta(tt, k, stop, nullChild, ply+1, depth-3, -beta, -beta+1, nodes)
 		if nullScore >= beta {
 			return beta
 		}
@@ -332,7 +355,7 @@ func alphabeta(tt *TT, k *killers, pos *position.Position, ply int, depth int, a
 	if found && entry.Move != core.NoMove {
 		child := position.MakeMove(pos, entry.Move)
 		*nodes++
-		score := -alphabeta(tt, k, child, ply+1, depth-1, -beta, -alpha, nodes)
+		score := -alphabeta(tt, k, stop, child, ply+1, depth-1, -beta, -alpha, nodes)
 		if score >= beta {
 			return beta
 		}
@@ -389,11 +412,11 @@ func alphabeta(tt *TT, k *killers, pos *position.Position, ply int, depth int, a
 			if R >= depth {
 				R = depth - 1
 			}
-			score = -alphabeta(tt, k, child, ply+1, depth-1-R, -(alpha+1), -alpha, nodes)
+			score = -alphabeta(tt, k, stop, child, ply+1, depth-1-R, -(alpha+1), -alpha, nodes)
 			doFull = score > alpha
 		}
 		if doFull {
-			score = -alphabeta(tt, k, child, ply+1, depth-1, -beta, -alpha, nodes)
+			score = -alphabeta(tt, k, stop, child, ply+1, depth-1, -beta, -alpha, nodes)
 		}
 		if score >= beta {
 			if !isCapture {

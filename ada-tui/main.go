@@ -27,11 +27,12 @@ const (
 )
 
 type app struct {
-	pos     *position.Position
-	depth   int
-	threads int
-	mode    int
-	game    *pgn.Game
+	pos       *position.Position
+	depth     int
+	threads   int
+	timeLimit time.Duration
+	mode      int
+	game      *pgn.Game
 
 	tv    *tview.Application
 	board *KittyImage
@@ -42,9 +43,17 @@ type app struct {
 
 func newApp() *app {
 	return &app{
-		depth:   defaultDepth,
-		threads: 0,
+		depth:     defaultDepth,
+		threads:   0,
+		timeLimit: 20 * time.Second,
 	}
+}
+
+func (a *app) searchLabel() string {
+	if a.timeLimit > 0 {
+		return fmt.Sprintf("depth 1..%d, %s limit", a.depth, a.timeLimit)
+	}
+	return fmt.Sprintf("depth 1..%d", a.depth)
 }
 
 func (a *app) appendLog(msg string) {
@@ -93,10 +102,10 @@ func (a *app) engineMove() {
 	}
 	d := a.depth
 	pos := a.pos
-	a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
+	a.appendLog(fmt.Sprintf("[yellow]Thinking (%s)...[-]", a.searchLabel()))
 	go func() {
 		start := time.Now()
-		res := search.Search(pos, d, a.threads, func(r search.Result) {
+		res := search.Search(pos, d, a.threads, a.timeLimit, func(r search.Result) {
 			elapsed := time.Since(start)
 			a.tv.QueueUpdateDraw(func() {
 				a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -150,6 +159,7 @@ func (a *app) handleInput(text string) {
 		a.appendLog("  [yellow]stop[-]         Stop auto-play")
 		a.appendLog("  [yellow]moves[-]        List legal moves")
 		a.appendLog("  [yellow]depth <n>[-]    Set search depth")
+		a.appendLog("  [yellow]time <dur>[-]   Set time limit (e.g. 5s, 20s, 0 to disable)")
 		a.appendLog("  [yellow]threads <n>[-]  Set search threads")
 		a.appendLog("  [yellow]fen <str>[-]    Load position")
 		a.appendLog("  [yellow]new[-]          New game")
@@ -173,6 +183,23 @@ func (a *app) handleInput(text string) {
 			a.updateInfo()
 		}
 
+	case "time":
+		if len(args) < 2 {
+			if a.timeLimit > 0 {
+				a.appendLog(fmt.Sprintf("Time limit: [aqua]%s[-]", a.timeLimit))
+			} else {
+				a.appendLog("Time limit: [aqua]off[-] (depth only)")
+			}
+		} else if args[1] == "0" || args[1] == "off" {
+			a.timeLimit = 0
+			a.appendLog("Time limit [aqua]disabled[-] (depth only)")
+		} else if dur, err := time.ParseDuration(args[1]); err == nil && dur > 0 {
+			a.timeLimit = dur
+			a.appendLog(fmt.Sprintf("Time limit set to [aqua]%s[-]", dur))
+		} else {
+			a.appendLog("[red]Usage: time <duration> (e.g. 5s, 20s, 1m, 0)[-]")
+		}
+
 	case "threads", "t":
 		if len(args) < 2 {
 			t := a.threads
@@ -187,11 +214,11 @@ func (a *app) handleInput(text string) {
 
 	case "search", "s":
 		d := a.parseDepthArg(args)
-		a.appendLog(fmt.Sprintf("[yellow]Searching depth 1..%d...[-]", d))
+		a.appendLog(fmt.Sprintf("[yellow]Searching (%s)...[-]", a.searchLabel()))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d, a.threads, func(r search.Result) {
+			res := search.Search(pos, d, a.threads, a.timeLimit, func(r search.Result) {
 				elapsed := time.Since(start)
 				a.tv.QueueUpdateDraw(func() {
 					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
@@ -215,11 +242,11 @@ func (a *app) handleInput(text string) {
 
 	case "play", "p":
 		d := a.parseDepthArg(args)
-		a.appendLog(fmt.Sprintf("[yellow]Thinking (depth 1..%d)...[-]", d))
+		a.appendLog(fmt.Sprintf("[yellow]Thinking (%s)...[-]", a.searchLabel()))
 		pos := a.pos
 		go func() {
 			start := time.Now()
-			res := search.Search(pos, d, a.threads, func(r search.Result) {
+			res := search.Search(pos, d, a.threads, a.timeLimit, func(r search.Result) {
 				elapsed := time.Since(start)
 				a.tv.QueueUpdateDraw(func() {
 					a.appendLog(fmt.Sprintf("  depth [aqua]%d[-]: [aqua]%s[-]  score: [yellow]%s[-]  nodes: %d  time: [yellow]%s[-]",
