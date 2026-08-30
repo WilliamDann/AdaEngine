@@ -2,39 +2,39 @@ package movegen
 
 import (
 	"errors"
-	"math/rand"
 	"math/bits"
+	"math/rand"
 
 	"github.com/WilliamDann/AdaEngine/ada-chess/core"
 )
 
 // magic bitboards for sliding pieces
 type MagicEntry struct {
-	mask       core.Bitboard
-	magic      uint64
-	indexBits  uint8
+	mask      core.Bitboard
+	magic     uint64
+	indexBits uint8
 }
 
 // type of function to get the squares a piece can see
 type AttackFn func(core.Square, core.Bitboard) core.Bitboard
 
-var rookMagics   [64]MagicEntry
+var rookMagics [64]MagicEntry
 var bishopMagics [64]MagicEntry
 
-var rookMoves    [64][]core.Bitboard
-var bishopMoves  [64][]core.Bitboard
+var rookMoves [64][]core.Bitboard
+var bishopMoves [64][]core.Bitboard
 
 // find magic numbers
 func findMagic(
-	square    core.Square,
-	mask      core.Bitboard,
-	attackFn  AttackFn,
+	square core.Square,
+	mask core.Bitboard,
+	attackFn AttackFn,
 	indexBits uint8,
 ) (MagicEntry, []core.Bitboard) {
 	for {
-		entry      := MagicEntry{
-			mask: mask,
-			magic: rand.Uint64() & rand.Uint64() & rand.Uint64(),
+		entry := MagicEntry{
+			mask:      mask,
+			magic:     rand.Uint64() & rand.Uint64() & rand.Uint64(),
 			indexBits: indexBits,
 		}
 		table, err := tryMakeTable(square, entry, attackFn)
@@ -49,7 +49,7 @@ func tryMakeTable(
 	entry MagicEntry,
 	attackFn AttackFn,
 ) ([]core.Bitboard, error) {
-	table := make([]core.Bitboard, 1 << entry.indexBits)
+	table := make([]core.Bitboard, 1<<entry.indexBits)
 	for blockers := core.Bitboard(0); ; {
 		moves := attackFn(square, blockers)
 		index := magicIndex(entry, blockers)
@@ -72,7 +72,7 @@ func tryMakeTable(
 // find bitboard for legal moves using a magic number
 func magicIndex(entry MagicEntry, blockers core.Bitboard) int {
 	blockers = blockers.Intersection(entry.mask)
-	hash    := uint64(blockers) * entry.magic
+	hash := uint64(blockers) * entry.magic
 	return int(hash >> (64 - entry.indexBits))
 }
 
@@ -92,11 +92,11 @@ func QueenMoves(square core.Square, blockers core.Bitboard) core.Bitboard {
 func init() {
 	for sq := core.Square(0); sq < 64; sq++ {
 		rMask := rookMask(sq)
-		rBits := uint8(bits.OnesCount64(uint64(rMask)))
+		rBits := uint8(bits.OnesCount64(uint64(rMask))) + 3
 		rookMagics[sq], rookMoves[sq] = findMagic(sq, rMask, rookAttacks, rBits)
 
 		bMask := bishopMask(sq)
-		bBits := uint8(bits.OnesCount64(uint64(bMask)))
+		bBits := uint8(bits.OnesCount64(uint64(bMask))) + 3
 		bishopMagics[sq], bishopMoves[sq] = findMagic(sq, bMask, bishopAttacks, bBits)
 	}
 }
